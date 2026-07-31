@@ -35,6 +35,17 @@ function rowToGame(r) {
   };
 }
 
+function sameGame(a, b) {
+  return a.id === b.id
+    && a.title === b.title
+    && a.genre === b.genre
+    && a.is_open_world === b.is_open_world
+    && a.year === b.year
+    && a.description === b.description
+    && a.image_url === b.image_url
+    && a.created_at === b.created_at;
+}
+
 function ratingToRow(r) {
   return {
     id: r.id,
@@ -89,15 +100,23 @@ async function pushLocal() {
   const games = getGames();
   const ratings = getAllRatings();
 
-  const { data: remoteGames, error: gameErr } = await supabase.from('games').select('id, title');
-  if (gameErr) throw gameErr;
+  const [gRes, rRes] = await Promise.all([
+    supabase.from('games').select('id, title, genre, is_open_world, year, description, image_url, created_at'),
+    supabase.from('ratings').select('id, updated_at'),
+  ]);
+  if (gRes.error) throw gRes.error;
+  if (rRes.error) throw rRes.error;
+
+  const remoteGames = gRes.data || [];
+  const remoteRatings = rRes.data || [];
 
   remoteTitleToId = new Map();
-  (remoteGames || []).forEach(g => {
+  remoteGames.forEach(g => {
     const t = normalizeKey(g.title);
     if (t && !remoteTitleToId.has(t)) remoteTitleToId.set(t, g.id);
   });
 
+  const remoteGameById = new Map(remoteGames.map(g => [g.id, g]));
   const gameById = new Map(games.map(g => [g.id, g]));
 
   const gameRows = [];
@@ -105,7 +124,10 @@ async function pushLocal() {
     const t = normalizeKey(g.title);
     const remoteId = t ? remoteTitleToId.get(t) : null;
     if (remoteId && remoteId !== g.id) return;
-    gameRows.push(gameToRow(g));
+    const row = gameToRow(g);
+    const remote = remoteGameById.get(g.id);
+    if (remote && sameGame(row, remote)) return;
+    gameRows.push(row);
   });
 
   if (gameRows.length) {
@@ -113,17 +135,22 @@ async function pushLocal() {
     if (error) throw error;
   }
 
-  const ratingRows = ratings
-    .filter(r => r && r.gameId)
-    .map(r => {
-      let gameId = r.gameId;
-      const local = gameById.get(r.gameId);
-      if (local) {
-        const canonical = remoteTitleToId.get(normalizeKey(local.title));
-        if (canonical) gameId = canonical;
-      }
-      return ratingToRow({ ...r, gameId });
-    });
+  const remoteUpdatedAt = new Map(remoteRatings.map(r => [r.id, r.updated_at]));
+
+  const ratingRows = [];
+  ratings.forEach(r => {
+    if (!r || !r.gameId) return;
+    let gameId = r.gameId;
+    const local = gameById.get(r.gameId);
+    if (local) {
+      const canonical = remoteTitleToId.get(normalizeKey(local.title));
+      if (canonical) gameId = canonical;
+    }
+    const row = ratingToRow({ ...r, gameId });
+    if (remoteUpdatedAt.get(r.id) === row.updated_at) return;
+    ratingRows.push(row);
+  });
+
   if (ratingRows.length) {
     const { error } = await supabase.from('ratings').upsert(ratingRows, { onConflict: 'id' });
     if (error) throw error;
@@ -166,7 +193,6 @@ function handleGameEvent(payload) {
     else games.push(game);
     hydrateGames(sortGames(games));
   }
-  dispatchSync();
 }
 
 function handleRatingEvent(payload) {
@@ -183,7 +209,6 @@ function handleRatingEvent(payload) {
     else ratings.push(rating);
     hydrateRatings(ratings);
   }
-  dispatchSync();
 }
 
 function subscribe() {
