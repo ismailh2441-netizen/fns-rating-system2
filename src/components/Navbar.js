@@ -1,8 +1,12 @@
 import { getTheme, toggleTheme } from '../theme.js';
-import { getUserId, setUserName } from '../auth.js';
+import { getUserId, setUserName, isSignedIn, signInWithGoogle, signOut } from '../auth.js';
 import { hasPin, isCoreUnlocked, unlockCore, lockCore, setPinAsync } from '../settings.js';
 
 let navOpen = false;
+
+function initials(name) {
+  return String(name || '?').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+}
 
 function refreshRoute() {
   window.dispatchEvent(new HashChangeEvent('hashchange'));
@@ -40,6 +44,7 @@ function onDocKey(e) {
 export function Navbar() {
   const container = document.getElementById('navbar');
   const user = getUserId();
+  const signedIn = isSignedIn();
   const isDark = getTheme() === 'dark';
   const coreUnlocked = isCoreUnlocked();
   const hasCorePin = hasPin();
@@ -69,11 +74,33 @@ export function Navbar() {
         </div>
       </div>
       <div id="userMenu" class="absolute right-4 top-full mt-2 w-72 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 z-50 ${navOpen ? '' : 'hidden'}">
-        <div class="p-3 border-b border-gray-100 dark:border-gray-600">
-          <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Display Name</label>
-          <input id="nameInput" type="text" value="${user.name}" class="w-full px-2 py-1 text-sm border rounded dark:bg-gray-600 dark:border-gray-500 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500">
-          <button id="nameSaveBtn" class="mt-2 w-full px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700 transition-colors">Save</button>
-        </div>
+        ${signedIn ? `
+          <div class="p-3 border-b border-gray-100 dark:border-gray-600">
+            <div class="flex items-center gap-2.5">
+              <span class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center font-bold text-indigo-600 dark:text-indigo-400 text-xs shrink-0">${initials(user.name)}</span>
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">${user.name}</p>
+                <p class="text-xs text-gray-400 dark:text-gray-500 truncate">${user.email || 'Google account'}</p>
+              </div>
+            </div>
+            <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-2">Your ratings are linked to this Google account on all your devices.</p>
+            <button id="signOutBtn" class="mt-2 w-full px-3 py-1.5 text-xs font-medium text-white bg-gray-500 hover:bg-gray-600 rounded transition-colors">Sign out</button>
+          </div>
+        ` : `
+          <div class="p-3 border-b border-gray-100 dark:border-gray-600">
+            <div id="signInError" class="hidden mb-2 p-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 text-xs rounded">Sign-in is not set up yet.</div>
+            <button id="googleSignInBtn" class="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-500 transition-colors">
+              <svg class="w-4 h-4" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.5 6.1 29.5 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.5 6.1 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.1 5.7l6.2 5.2C37.3 41.4 44 36.5 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
+              Sign in with Google
+            </button>
+            <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1.5">Optional. Sign in to keep your ratings on all your devices.</p>
+          </div>
+          <div class="p-3 border-b border-gray-100 dark:border-gray-600">
+            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Display Name</label>
+            <input id="nameInput" type="text" value="${user.name}" class="w-full px-2 py-1 text-sm border rounded dark:bg-gray-600 dark:border-gray-500 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            <button id="nameSaveBtn" class="mt-2 w-full px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700 transition-colors">Save</button>
+          </div>
+        `}
         <div class="p-3">
           <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Core Mode</p>
           ${coreUnlocked ? `
@@ -103,12 +130,40 @@ export function Navbar() {
     setNav(!navOpen);
   });
 
-  document.getElementById('nameSaveBtn').addEventListener('click', () => {
+  document.getElementById('nameSaveBtn')?.addEventListener('click', () => {
     const name = document.getElementById('nameInput').value.trim();
     setUserName(name);
     Navbar();
     refreshRoute();
   });
+
+  const googleBtn = document.getElementById('googleSignInBtn');
+  if (googleBtn) {
+    googleBtn.addEventListener('click', async () => {
+      const err = document.getElementById('signInError');
+      try {
+        await signInWithGoogle();
+      } catch (e) {
+        if (err) {
+          err.textContent = 'Sign-in is not set up yet. Ask Ismail to enable Google sign-in.';
+          err.classList.remove('hidden');
+        }
+      }
+    });
+  }
+
+  const signOutBtn = document.getElementById('signOutBtn');
+  if (signOutBtn) {
+    signOutBtn.addEventListener('click', async () => {
+      try {
+        await signOut();
+      } catch (e) {
+        console.error('auth: sign out failed', e);
+      }
+      Navbar();
+      refreshRoute();
+    });
+  }
 
   const unlockBtn = document.getElementById('unlockCoreBtn');
   if (unlockBtn) {

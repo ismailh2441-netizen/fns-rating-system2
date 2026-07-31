@@ -1,7 +1,9 @@
 import { supabase, enabled } from './supabase.js';
 import { getGames, getAllRatings, hydrateGames, hydrateRatings } from './db.js';
-import { getUserId } from './auth.js';
+import { getUserId, authReady, displayName } from './auth.js';
 import { cachePinHash } from './settings.js';
+
+const anonDeviceId = getUserId().id;
 
 function normalizeKey(s) {
   return String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -185,6 +187,8 @@ function handleRatingEvent(payload) {
 }
 
 function subscribe() {
+  if (subscribed) return;
+  subscribed = true;
   supabase.channel('fns-realtime')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, handleGameEvent)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ratings' }, handleRatingEvent)
@@ -219,7 +223,24 @@ window.addEventListener('fns:local-change', e => {
   if (p) p.then(({ error } = {}) => { if (error) console.error('sync: push', error); }).catch(err => console.error('sync: push', err));
 });
 
-export async function initSync() {
+let subscribed = false;
+
+function adoptDeviceRatings(authId, authName) {
+  if (!anonDeviceId || anonDeviceId === authId) return;
+  const ratings = getAllRatings();
+  let changed = false;
+  ratings.forEach(r => {
+    if (r && r.userId === anonDeviceId) {
+      r.userId = authId;
+      r.userName = authName || r.userName;
+      r.updatedAt = Date.now();
+      changed = true;
+    }
+  });
+  if (changed) hydrateRatings(ratings);
+}
+
+async function syncNow() {
   if (!enabled) return;
   try {
     await pushLocal();
@@ -236,6 +257,15 @@ export async function initSync() {
   } catch (err) {
     console.warn('sync: settings pull failed', err);
   }
-  subscribe();
   dispatchSync();
+}
+
+export async function initSync() {
+  if (!enabled) return;
+  const user = await authReady();
+  if (user) {
+    adoptDeviceRatings(user.id, displayName(user));
+  }
+  await syncNow();
+  subscribe();
 }

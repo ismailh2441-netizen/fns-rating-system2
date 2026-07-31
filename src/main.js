@@ -5,6 +5,7 @@ import { AddGame } from './pages/AddGame.js';
 import { MyRatings } from './pages/MyRatings.js';
 import { Compare } from './pages/Compare.js';
 import { initSync } from './sync.js';
+import { authReady, onAuthChange } from './auth.js';
 
 const app = document.getElementById('app');
 
@@ -32,10 +33,21 @@ function router() {
 }
 
 window.addEventListener('hashchange', router);
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
+  await authReady();
   Navbar();
   router();
   initSync();
 });
 
 window.addEventListener('fns:sync', router);
+
+let lastAuthUserId = null;
+onAuthChange((event, session) => {
+  const id = session && session.user ? session.user.id : null;
+  if (id !== lastAuthUserId) {
+    lastAuthUserId = id;
+    Navbar();
+    router();
+  }
+});
