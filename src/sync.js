@@ -1,0 +1,221 @@
+import { supabase, enabled } from './supabase.js';
+import { getGames, getAllRatings, hydrateGames, hydrateRatings } from './db.js';
+import { getUserId } from './auth.js';
+import { cachePinHash } from './settings.js';
+
+function normalizeKey(s) {
+  return String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function gameToRow(g) {
+  return {
+    id: g.id,
+    title: g.title,
+    genre: g.genre || '',
+    is_open_world: !!g.isOpenWorld,
+    year: String(g.year ?? ''),
+    description: g.description || '',
+    image_url: g.imageUrl || '',
+    created_at: g.createdAt ?? Date.now(),
+  };
+}
+
+function rowToGame(r) {
+  return {
+    id: r.id,
+    title: r.title,
+    genre: r.genre || '',
+    isOpenWorld: !!r.is_open_world,
+    year: r.year != null ? String(r.year) : '',
+    description: r.description || '',
+    imageUrl: r.image_url || '',
+    createdAt: r.created_at ?? Date.now(),
+  };
+}
+
+function ratingToRow(r) {
+  return {
+    id: r.id,
+    game_id: r.gameId,
+    user_id: r.userId,
+    user_name: r.userName || 'Anonymous',
+    gameplay: r.gameplay ?? null,
+    story: r.story ?? null,
+    graphics: r.graphics ?? null,
+    background_music: r.backgroundMusic ?? null,
+    world_design: r.worldDesign ?? null,
+    exploration: r.exploration ?? null,
+    characters: r.characters ?? null,
+    villain: r.villain ?? null,
+    average: r.average ?? 0,
+    created_at: r.createdAt ?? Date.now(),
+    updated_at: r.updatedAt ?? Date.now(),
+  };
+}
+
+function rowToRating(r) {
+  return {
+    id: r.id,
+    gameId: r.game_id,
+    userId: r.user_id,
+    userName: r.user_name || 'Anonymous',
+    gameplay: r.gameplay ?? null,
+    story: r.story ?? null,
+    graphics: r.graphics ?? null,
+    backgroundMusic: r.background_music ?? null,
+    worldDesign: r.world_design ?? null,
+    exploration: r.exploration ?? null,
+    characters: r.characters ?? null,
+    villain: r.villain ?? null,
+    average: r.average ?? 0,
+    createdAt: r.created_at ?? Date.now(),
+    updatedAt: r.updated_at ?? Date.now(),
+  };
+}
+
+function dispatchSync() {
+  window.dispatchEvent(new CustomEvent('fns:sync'));
+}
+
+function sortGames(games) {
+  return games.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+}
+
+async function pushLocal() {
+  const games = getGames();
+  const ratings = getAllRatings();
+
+  const { data: remoteGames, error: gameErr } = await supabase.from('games').select('id, title');
+  if (gameErr) throw gameErr;
+
+  const titleToId = new Map();
+  (remoteGames || []).forEach(g => {
+    const t = normalizeKey(g.title);
+    if (t && !titleToId.has(t)) titleToId.set(t, g.id);
+  });
+
+  const idMap = new Map();
+  const gameRows = [];
+  games.forEach(g => {
+    const t = normalizeKey(g.title);
+    const remoteId = t ? titleToId.get(t) : null;
+    if (remoteId && remoteId !== g.id) {
+      idMap.set(g.id, remoteId);
+      return;
+    }
+    gameRows.push(gameToRow(g));
+  });
+
+  if (gameRows.length) {
+    const { error } = await supabase.from('games').upsert(gameRows, { onConflict: 'id' });
+    if (error) throw error;
+  }
+
+  const ratingRows = ratings
+    .filter(r => r && r.gameId)
+    .map(r => ratingToRow({ ...r, gameId: idMap.get(r.gameId) || r.gameId }));
+  if (ratingRows.length) {
+    const { error } = await supabase.from('ratings').upsert(ratingRows, { onConflict: 'id' });
+    if (error) throw error;
+  }
+}
+
+async function pullAll() {
+  const { data: games, error: gErr } = await supabase.from('games').select('*').order('created_at', { ascending: true });
+  if (gErr) throw gErr;
+  const { data: ratings, error: rErr } = await supabase.from('ratings').select('*').order('created_at', { ascending: true });
+  if (rErr) throw rErr;
+  hydrateGames(sortGames((games || []).map(rowToGame)));
+  hydrateRatings((ratings || []).map(rowToRating));
+}
+
+async function pullSettings() {
+  const { data, error } = await supabase.from('settings').select('value').eq('key', 'pin_hash').maybeSingle();
+  if (error) throw error;
+  cachePinHash(data && data.value ? data.value : '');
+}
+
+function isOwnRating(row) {
+  if (!row) return false;
+  try { return row.user_id === getUserId().id; } catch { return false; }
+}
+
+function handleGameEvent(payload) {
+  const games = getGames();
+  const { eventType, new: next, old: prev } = payload;
+  if (eventType === 'DELETE') {
+    const id = prev && prev.id;
+    if (!id) return;
+    hydrateGames(games.filter(g => g.id !== id));
+    const ratings = getAllRatings();
+    hydrateRatings(ratings.filter(r => r.gameId !== id));
+  } else {
+    const game = rowToGame(next);
+    const idx = games.findIndex(g => g.id === game.id);
+    if (idx >= 0) games[idx] = game;
+    else games.push(game);
+    hydrateGames(sortGames(games));
+  }
+  dispatchSync();
+}
+
+function handleRatingEvent(payload) {
+  const { eventType, new: next, old: prev } = payload;
+  if (isOwnRating(eventType === 'DELETE' ? prev : next)) return;
+  const ratings = getAllRatings();
+  if (eventType === 'DELETE') {
+    const id = prev && prev.id;
+    if (id) hydrateRatings(ratings.filter(r => r.id !== id));
+  } else {
+    const rating = rowToRating(next);
+    const idx = ratings.findIndex(r => r.id === rating.id);
+    if (idx >= 0) ratings[idx] = rating;
+    else ratings.push(rating);
+    hydrateRatings(ratings);
+  }
+  dispatchSync();
+}
+
+function subscribe() {
+  supabase.channel('fns-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, handleGameEvent)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'ratings' }, handleRatingEvent)
+    .subscribe(status => {
+      if (status !== 'SUBSCRIBED') console.warn('sync: realtime status', status);
+    });
+}
+
+window.addEventListener('fns:local-change', e => {
+  if (!enabled) return;
+  const d = e.detail;
+  if (!d || !d.type) return;
+  const p = (() => {
+    if (d.type === 'game-upsert') return supabase.from('games').upsert(gameToRow(d.game), { onConflict: 'id' });
+    if (d.type === 'game-delete') {
+      const del = supabase.from('games').delete().eq('id', d.id);
+      const delRatings = supabase.from('ratings').delete().eq('game_id', d.id);
+      return Promise.all([del, delRatings]);
+    }
+    if (d.type === 'rating-upsert') return supabase.from('ratings').upsert(ratingToRow(d.rating), { onConflict: 'id' });
+    if (d.type === 'rating-delete') return supabase.from('ratings').delete().eq('game_id', d.gameId).eq('user_id', d.userId);
+    return null;
+  })();
+  if (p) p.then(({ error } = {}) => { if (error) console.error('sync: push', error); }).catch(err => console.error('sync: push', err));
+});
+
+export async function initSync() {
+  if (!enabled) return;
+  try {
+    await pushLocal();
+    await pullAll();
+  } catch (err) {
+    console.error('sync: init failed', err);
+  }
+  try {
+    await pullSettings();
+  } catch (err) {
+    console.warn('sync: settings pull failed', err);
+  }
+  subscribe();
+  dispatchSync();
+}
