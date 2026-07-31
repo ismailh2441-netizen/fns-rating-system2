@@ -41,16 +41,16 @@ alter table public.ratings enable row level security;
 alter table public.settings enable row level security;
 
 drop policy if exists games_anon_all on public.games;
-create policy games_anon_all on public.games for all to anon using (true) with check (true);
+create policy games_anon_all on public.games for all to anon, authenticated using (true) with check (true);
 drop policy if exists ratings_anon_all on public.ratings;
-create policy ratings_anon_all on public.ratings for all to anon using (true) with check (true);
+create policy ratings_anon_all on public.ratings for all to anon, authenticated using (true) with check (true);
 drop policy if exists settings_anon_all on public.settings;
-create policy settings_anon_all on public.settings for all to anon using (true) with check (true);
+create policy settings_anon_all on public.settings for all to anon, authenticated using (true) with check (true);
 
-grant usage on schema public to anon;
-grant select, insert, update, delete on public.games to anon;
-grant select, insert, update, delete on public.ratings to anon;
-grant select, insert, update, delete on public.settings to anon;
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on public.games to anon, authenticated;
+grant select, insert, update, delete on public.ratings to anon, authenticated;
+grant select, insert, update, delete on public.settings to anon, authenticated;
 
 alter publication supabase_realtime add table public.games;
 alter publication supabase_realtime add table public.ratings;
