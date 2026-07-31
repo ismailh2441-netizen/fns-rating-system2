@@ -81,6 +81,8 @@ function sortGames(games) {
   return games.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 }
 
+let remoteTitleToId = new Map();
+
 async function pushLocal() {
   const games = getGames();
   const ratings = getAllRatings();
@@ -88,21 +90,19 @@ async function pushLocal() {
   const { data: remoteGames, error: gameErr } = await supabase.from('games').select('id, title');
   if (gameErr) throw gameErr;
 
-  const titleToId = new Map();
+  remoteTitleToId = new Map();
   (remoteGames || []).forEach(g => {
     const t = normalizeKey(g.title);
-    if (t && !titleToId.has(t)) titleToId.set(t, g.id);
+    if (t && !remoteTitleToId.has(t)) remoteTitleToId.set(t, g.id);
   });
 
-  const idMap = new Map();
+  const gameById = new Map(games.map(g => [g.id, g]));
+
   const gameRows = [];
   games.forEach(g => {
     const t = normalizeKey(g.title);
-    const remoteId = t ? titleToId.get(t) : null;
-    if (remoteId && remoteId !== g.id) {
-      idMap.set(g.id, remoteId);
-      return;
-    }
+    const remoteId = t ? remoteTitleToId.get(t) : null;
+    if (remoteId && remoteId !== g.id) return;
     gameRows.push(gameToRow(g));
   });
 
@@ -113,7 +113,15 @@ async function pushLocal() {
 
   const ratingRows = ratings
     .filter(r => r && r.gameId)
-    .map(r => ratingToRow({ ...r, gameId: idMap.get(r.gameId) || r.gameId }));
+    .map(r => {
+      let gameId = r.gameId;
+      const local = gameById.get(r.gameId);
+      if (local) {
+        const canonical = remoteTitleToId.get(normalizeKey(local.title));
+        if (canonical) gameId = canonical;
+      }
+      return ratingToRow({ ...r, gameId });
+    });
   if (ratingRows.length) {
     const { error } = await supabase.from('ratings').upsert(ratingRows, { onConflict: 'id' });
     if (error) throw error;
@@ -196,7 +204,15 @@ window.addEventListener('fns:local-change', e => {
       const delRatings = supabase.from('ratings').delete().eq('game_id', d.id);
       return Promise.all([del, delRatings]);
     }
-    if (d.type === 'rating-upsert') return supabase.from('ratings').upsert(ratingToRow(d.rating), { onConflict: 'id' });
+    if (d.type === 'rating-upsert') {
+      let gameId = d.rating.gameId;
+      const local = getGames().find(g => g.id === gameId);
+      if (local) {
+        const canonical = remoteTitleToId.get(normalizeKey(local.title));
+        if (canonical) gameId = canonical;
+      }
+      return supabase.from('ratings').upsert(ratingToRow({ ...d.rating, gameId }), { onConflict: 'id' });
+    }
     if (d.type === 'rating-delete') return supabase.from('ratings').delete().eq('game_id', d.gameId).eq('user_id', d.userId);
     return null;
   })();
@@ -207,9 +223,13 @@ export async function initSync() {
   if (!enabled) return;
   try {
     await pushLocal();
+  } catch (err) {
+    console.error('sync: push failed', err);
+  }
+  try {
     await pullAll();
   } catch (err) {
-    console.error('sync: init failed', err);
+    console.error('sync: pull failed', err);
   }
   try {
     await pullSettings();
