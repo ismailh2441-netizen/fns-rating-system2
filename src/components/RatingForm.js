@@ -90,10 +90,11 @@ function criteriaMarkup(existing, game, control) {
   }).join('');
 }
 
-function renderForm(container, game, existing, control) {
+function renderForm(container, game, existing, control, needsName) {
   container.innerHTML = `
     <div class="fade-in">
       <div id="ratingMessage"></div>
+      ${needsName ? '<div class="mb-3 p-3 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg text-sm font-medium">Set your name first — click your name in the top bar, enter a name under "Display Name", and press Save before rating.</div>' : ''}
       <h3 class="text-lg font-bold mb-2 text-gray-900 dark:text-gray-100">
         ${existing ? 'Your Rating' : 'Rate This Game'}
       </h3>
@@ -138,10 +139,12 @@ export function RatingForm(container, game) {
     existing = null;
   }
 
+  const needsName = !user || !user.name || String(user.name).trim().toLowerCase() === 'anonymous';
+
   try {
-    renderForm(container, game, existing, 'slider');
+    renderForm(container, game, existing, 'slider', needsName);
   } catch {
-    renderForm(container, game, existing, 'select');
+    renderForm(container, game, existing, 'select', needsName);
   }
 
   container.querySelectorAll('#ratingForm input[type="range"]').forEach(input => {
@@ -173,6 +176,18 @@ export function RatingForm(container, game) {
     const form = container.querySelector('#ratingForm');
     if (!form) return;
 
+    let current;
+    try {
+      current = getUserId();
+    } catch {
+      current = { id: '', name: 'Anonymous' };
+    }
+    const currentName = (current && current.name ? current.name : '').trim();
+    if (!currentName || currentName.toLowerCase() === 'anonymous') {
+      showMessage('Please set your name first. Click your name in the top bar, enter a name under "Display Name", and press Save.', 'error');
+      return;
+    }
+
     const active = CRITERIA.filter(crit => {
       const cb = form.querySelector(`input[data-crit-toggle="${crit.key}"]`);
       return cb && cb.checked;
@@ -193,8 +208,8 @@ export function RatingForm(container, game) {
     try {
       saveRating({
         gameId: game.id,
-        userId: user.id,
-        userName: user.name,
+        userId: current.id,
+        userName: current.name,
         ...rating,
       });
       showMessage('Rating saved!', 'success');
