@@ -1,11 +1,8 @@
 import { getUserRating, saveRating, deleteRating } from '../db.js';
-import { getUserId, setUserName } from '../auth.js';
+import { getUserId } from '../auth.js';
 import { CRITERIA, activeCriteria } from '../fns.js';
 import { Navbar } from './Navbar.js';
-
-function escapeAttr(str) {
-  return String(str == null ? '' : str).replace(/"/g, '&quot;').replace(/</g, '&lt;');
-}
+import { openNameGate } from './NameGate.js';
 
 function getColor(val) {
   if (val >= 8.5) return '#10b981';
@@ -95,17 +92,10 @@ function criteriaMarkup(existing, game, control) {
   }).join('');
 }
 
-function renderForm(container, game, existing, control, needsName, userName) {
+function renderForm(container, game, existing, control) {
   container.innerHTML = `
     <div class="fade-in">
       <div id="ratingMessage"></div>
-      ${needsName ? `
-        <div class="mb-3">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Your Name</label>
-          <input type="text" id="ratingNameInput" value="${escapeAttr(userName)}" maxlength="30" class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <p class="text-xs text-amber-500 dark:text-amber-400 mt-1">A name is required to rate. This is saved to your profile.</p>
-        </div>
-      ` : ''}
       <h3 class="text-lg font-bold mb-2 text-gray-900 dark:text-gray-100">
         ${existing ? 'Your Rating' : 'Rate This Game'}
       </h3>
@@ -150,12 +140,10 @@ export function RatingForm(container, game) {
     existing = null;
   }
 
-  const needsName = !user || !user.name || String(user.name).trim().toLowerCase() === 'anonymous';
-
   try {
-    renderForm(container, game, existing, 'slider', needsName, user.name);
+    renderForm(container, game, existing, 'slider');
   } catch {
-    renderForm(container, game, existing, 'select', needsName, user.name);
+    renderForm(container, game, existing, 'select');
   }
 
   container.querySelectorAll('#ratingForm input[type="range"]').forEach(input => {
@@ -181,9 +169,7 @@ export function RatingForm(container, game) {
     });
   });
 
-  container.addEventListener('submit', function (e) {
-    e.preventDefault();
-    e.stopPropagation();
+  function doSubmit(nameChanged) {
     const form = container.querySelector('#ratingForm');
     if (!form) return;
 
@@ -193,28 +179,10 @@ export function RatingForm(container, game) {
     } catch {
       current = { id: '', name: 'Anonymous' };
     }
-
-    const nameInput = form.querySelector('#ratingNameInput');
-    let finalName = '';
-    let nameJustSet = false;
-
-    if (nameInput) {
-      finalName = nameInput.value.trim();
-      if (!finalName) {
-        nameInput.focus();
-        showMessage('Enter your name above to continue.', 'error');
-        return;
-      }
-      try {
-        setUserName(finalName);
-        nameJustSet = true;
-      } catch {}
-    } else {
-      finalName = (current && current.name ? current.name : '').trim();
-      if (!finalName || finalName.toLowerCase() === 'anonymous') {
-        showMessage('Please set your name first. Click your name in the top bar, enter a name under "Display Name", and press Save.', 'error');
-        return;
-      }
+    const currentName = (current && current.name ? current.name : '').trim();
+    if (!currentName || currentName.toLowerCase() === 'anonymous') {
+      openNameGate({ onDone: doSubmit });
+      return;
     }
 
     const active = CRITERIA.filter(crit => {
@@ -238,13 +206,13 @@ export function RatingForm(container, game) {
       saveRating({
         gameId: game.id,
         userId: current.id,
-        userName: finalName,
+        userName: current.name,
         ...rating,
       });
       showMessage('Rating saved!', 'success');
       setTimeout(() => {
         if (!container.isConnected) return;
-        if (nameJustSet && typeof Navbar === 'function') {
+        if (nameChanged && typeof Navbar === 'function') {
           Navbar();
         }
         if (typeof window.__onRatingChange === 'function') {
@@ -254,6 +222,12 @@ export function RatingForm(container, game) {
     } catch (err) {
       showMessage('Something went wrong saving your rating. Please try again.', 'error');
     }
+  }
+
+  container.addEventListener('submit', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    doSubmit(false);
   });
 
   const resetBtn = container.querySelector('#resetRatingBtn');
