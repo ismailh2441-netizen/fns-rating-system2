@@ -202,6 +202,7 @@ export function GameDetail(app, id) {
 
   function renderEditForm(gameRef) {
     const container = document.getElementById('editContainer');
+    const editPlat = normalizePlatforms(gameRef.platforms);
     container.innerHTML = `
       <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-indigo-300 dark:border-indigo-800 p-6 mb-6 fade-in">
         <h2 class="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">Edit Game</h2>
@@ -286,7 +287,6 @@ export function GameDetail(app, id) {
     const editCoverError = document.getElementById('editCoverError');
     const editImageUrl = document.getElementById('editImageUrl');
     let editCoverData = gameRef.imageUrl || '';
-    const editPlat = normalizePlatforms(gameRef.platforms);
     if (editCoverData) showEditCoverPreview(editCoverData);
 
     function showEditCoverPreview(url) {
