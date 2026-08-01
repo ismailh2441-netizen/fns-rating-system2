@@ -191,7 +191,7 @@ export function hydrateComments(comments) {
   save(COMMENTS_KEY, comments);
 }
 
-export function addComment({ gameId, userId, userName, body }) {
+export function addComment({ gameId, userId, userName, body, parentId }) {
   const comments = load(COMMENTS_KEY);
   const comment = {
     id: uuid(),
@@ -199,6 +199,7 @@ export function addComment({ gameId, userId, userName, body }) {
     userId,
     userName: userName || 'Anonymous',
     body: String(body || '').trim(),
+    parentId: parentId || null,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
@@ -209,6 +210,18 @@ export function addComment({ gameId, userId, userName, body }) {
 }
 
 export function deleteComment(id) {
-  save(COMMENTS_KEY, load(COMMENTS_KEY).filter(c => c.id !== id));
-  notify('comment-delete', { id });
+  const comments = load(COMMENTS_KEY);
+  const idsToDelete = new Set([id]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    comments.forEach(c => {
+      if (c.parentId && idsToDelete.has(c.parentId) && !idsToDelete.has(c.id)) {
+        idsToDelete.add(c.id);
+        changed = true;
+      }
+    });
+  }
+  save(COMMENTS_KEY, comments.filter(c => !idsToDelete.has(c.id)));
+  idsToDelete.forEach(delId => notify('comment-delete', { id: delId }));
 }

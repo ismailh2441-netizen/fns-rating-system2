@@ -42,6 +42,7 @@ create table if not exists public.comments (
   user_id text not null,
   user_name text not null default '',
   body text not null default '',
+  parent_id uuid null,
   created_at bigint not null default 0,
   updated_at bigint not null default 0
 );

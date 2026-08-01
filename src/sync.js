@@ -93,6 +93,7 @@ function commentToRow(c) {
     user_id: c.userId,
     user_name: c.userName || 'Anonymous',
     body: c.body || '',
+    parent_id: c.parentId || null,
     created_at: c.createdAt ?? Date.now(),
     updated_at: c.updatedAt ?? Date.now(),
   };
@@ -105,6 +106,7 @@ function rowToComment(c) {
     userId: c.user_id,
     userName: c.user_name || 'Anonymous',
     body: c.body || '',
+    parentId: c.parent_id || null,
     createdAt: c.created_at ?? Date.now(),
     updatedAt: c.updated_at ?? Date.now(),
   };
