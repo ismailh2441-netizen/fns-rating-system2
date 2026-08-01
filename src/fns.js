@@ -7,6 +7,8 @@ export const CRITERIA = [
   { key: 'exploration', label: 'Exploration (Open World)', always: false },
   { key: 'characters', label: 'Characters', always: true },
   { key: 'villain', label: 'Villain', always: true },
+  { key: 'dlc', label: 'DLC', always: true },
+  { key: 'multiplayer', label: 'Multiplayer', always: true },
 ];
 
 export const CRITERIA_SHORT = {
@@ -18,6 +20,8 @@ export const CRITERIA_SHORT = {
   exploration: 'Explore',
   characters: 'Characters',
   villain: 'Villain',
+  dlc: 'DLC',
+  multiplayer: 'Multiplayer',
 };
 
 export function activeCriteria(game) {
@@ -25,7 +29,7 @@ export function activeCriteria(game) {
 }
 
 export function computeFNS(rating) {
-  const keys = ['gameplay', 'story', 'graphics', 'backgroundMusic', 'worldDesign', 'exploration', 'characters', 'villain'];
+  const keys = ['gameplay', 'story', 'graphics', 'backgroundMusic', 'worldDesign', 'exploration', 'characters', 'villain', 'dlc', 'multiplayer'];
   const vals = keys.map(k => rating[k]).filter(v => v != null);
   return vals.length > 0 ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : 0;
 }

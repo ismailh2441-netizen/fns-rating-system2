@@ -25,6 +25,8 @@ create table if not exists public.ratings (
   exploration real,
   characters real,
   villain real,
+  dlc real,
+  multiplayer real,
   average real not null default 0,
   created_at bigint not null default 0,
   updated_at bigint not null default 0,
