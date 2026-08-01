@@ -2,6 +2,7 @@ import { uuid, normalizeTitle } from './util.js';
 
 const GAMES_KEY = 'fns_games';
 const RATINGS_KEY = 'fns_ratings';
+const COMMENTS_KEY = 'fns_comments';
 
 const SEED_GAMES = [
   { title: 'Sekiro: Shadows Die Twice', genre: 'Action RPG', isOpenWorld: false, year: 2019, description: 'A brutal action RPG where you play as a shinobi fighting for revenge in a fractured Japan.' },
@@ -130,6 +131,7 @@ export function updateGame(id, fields) {
 export function deleteGame(id) {
   save(GAMES_KEY, load(GAMES_KEY).filter(g => g.id !== id));
   save(RATINGS_KEY, load(RATINGS_KEY).filter(r => r.gameId !== id));
+  save(COMMENTS_KEY, load(COMMENTS_KEY).filter(c => c.gameId !== id));
   notify('game-delete', { id });
 }
 
@@ -175,4 +177,38 @@ export function deleteRating(gameId, userId) {
 
 export function getAllRatings() {
   return load(RATINGS_KEY);
+}
+
+export function getComments(gameId) {
+  return load(COMMENTS_KEY).filter(c => c.gameId === gameId);
+}
+
+export function getAllComments() {
+  return load(COMMENTS_KEY);
+}
+
+export function hydrateComments(comments) {
+  save(COMMENTS_KEY, comments);
+}
+
+export function addComment({ gameId, userId, userName, body }) {
+  const comments = load(COMMENTS_KEY);
+  const comment = {
+    id: uuid(),
+    gameId,
+    userId,
+    userName: userName || 'Anonymous',
+    body: String(body || '').trim(),
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  comments.push(comment);
+  if (!save(COMMENTS_KEY, comments)) throw new Error('Storage is full. Try a shorter comment.');
+  notify('comment-upsert', { comment });
+  return comment;
+}
+
+export function deleteComment(id) {
+  save(COMMENTS_KEY, load(COMMENTS_KEY).filter(c => c.id !== id));
+  notify('comment-delete', { id });
 }

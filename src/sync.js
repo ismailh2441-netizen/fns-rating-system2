@@ -1,5 +1,5 @@
 import { supabase, enabled } from './supabase.js';
-import { getGames, getAllRatings, hydrateGames, hydrateRatings } from './db.js';
+import { getGames, getAllRatings, getAllComments, hydrateGames, hydrateRatings, hydrateComments } from './db.js';
 import { getUserId, authReady, displayName } from './auth.js';
 import { cachePinHash } from './settings.js';
 
@@ -86,6 +86,30 @@ function rowToRating(r) {
   };
 }
 
+function commentToRow(c) {
+  return {
+    id: c.id,
+    game_id: c.gameId,
+    user_id: c.userId,
+    user_name: c.userName || 'Anonymous',
+    body: c.body || '',
+    created_at: c.createdAt ?? Date.now(),
+    updated_at: c.updatedAt ?? Date.now(),
+  };
+}
+
+function rowToComment(c) {
+  return {
+    id: c.id,
+    gameId: c.game_id,
+    userId: c.user_id,
+    userName: c.user_name || 'Anonymous',
+    body: c.body || '',
+    createdAt: c.created_at ?? Date.now(),
+    updatedAt: c.updated_at ?? Date.now(),
+  };
+}
+
 function dispatchSync() {
   window.dispatchEvent(new CustomEvent('fns:sync'));
 }
@@ -156,6 +180,25 @@ async function pushLocal() {
     const { error } = await supabase.from('ratings').upsert(ratingRows, { onConflict: 'id' });
     if (error) throw error;
   }
+
+  try {
+    const { data: remoteComments, error: cErr } = await supabase.from('comments').select('id, updated_at');
+    if (cErr) throw cErr;
+    const remoteCommentUpdated = new Map((remoteComments || []).map(c => [c.id, c.updated_at]));
+    const commentRows = [];
+    getAllComments().forEach(c => {
+      if (!c || !c.gameId) return;
+      const row = commentToRow(c);
+      if (remoteCommentUpdated.get(c.id) === row.updated_at) return;
+      commentRows.push(row);
+    });
+    if (commentRows.length) {
+      const { error } = await supabase.from('comments').upsert(commentRows, { onConflict: 'id' });
+      if (error) throw error;
+    }
+  } catch (err) {
+    console.warn('sync: comments push failed', err);
+  }
 }
 
 async function pullAll() {
@@ -170,6 +213,13 @@ async function pullAll() {
   if (pulledGames.length > 0) {
     hydrateGames(sortGames(pulledGames));
     hydrateRatings(pulledRatings);
+  }
+  try {
+    const { data, error } = await supabase.from('comments').select('*').order('created_at', { ascending: true });
+    if (error) throw error;
+    hydrateComments((data || []).map(rowToComment));
+  } catch (err) {
+    console.warn('sync: comments pull failed', err);
   }
 }
 
@@ -193,6 +243,8 @@ function handleGameEvent(payload) {
     hydrateGames(games.filter(g => g.id !== id));
     const ratings = getAllRatings();
     hydrateRatings(ratings.filter(r => r.gameId !== id));
+    const comments = getAllComments();
+    hydrateComments(comments.filter(c => c.gameId !== id));
   } else {
     const game = rowToGame(next);
     const idx = games.findIndex(g => g.id === game.id);
@@ -222,6 +274,21 @@ function handleRatingEvent(payload) {
   }
 }
 
+function handleCommentEvent(payload) {
+  const { eventType, new: next, old: prev } = payload;
+  const comments = getAllComments();
+  if (eventType === 'DELETE') {
+    const id = prev && prev.id;
+    if (id) hydrateComments(comments.filter(c => c.id !== id));
+  } else {
+    const comment = rowToComment(next);
+    const idx = comments.findIndex(c => c.id === comment.id);
+    if (idx >= 0) comments[idx] = comment;
+    else comments.push(comment);
+    hydrateComments(comments);
+  }
+}
+
 function subscribe() {
   if (subscribed) return;
   subscribed = true;
@@ -230,6 +297,11 @@ function subscribe() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ratings' }, handleRatingEvent)
     .subscribe(status => {
       if (status !== 'SUBSCRIBED') console.warn('sync: realtime status', status);
+    });
+  supabase.channel('fns-comments-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, handleCommentEvent)
+    .subscribe(status => {
+      if (status !== 'SUBSCRIBED') console.warn('sync: comments realtime status', status);
     });
 }
 
@@ -254,6 +326,8 @@ window.addEventListener('fns:local-change', e => {
       return supabase.from('ratings').upsert(ratingToRow({ ...d.rating, gameId }), { onConflict: 'id' });
     }
     if (d.type === 'rating-delete') return supabase.from('ratings').delete().eq('game_id', d.gameId).eq('user_id', d.userId);
+    if (d.type === 'comment-upsert') return supabase.from('comments').upsert(commentToRow(d.comment), { onConflict: 'id' });
+    if (d.type === 'comment-delete') return supabase.from('comments').delete().eq('id', d.id);
     return null;
   })();
   if (p) p.then(({ error } = {}) => { if (error) console.error('sync: push', error); }).catch(err => console.error('sync: push', err));
@@ -274,6 +348,17 @@ function adoptDeviceRatings(authId, authName) {
     }
   });
   if (changed) hydrateRatings(ratings);
+  const comments = getAllComments();
+  let commentsChanged = false;
+  comments.forEach(c => {
+    if (c && c.userId === anonDeviceId) {
+      c.userId = authId;
+      c.userName = authName || c.userName;
+      c.updatedAt = Date.now();
+      commentsChanged = true;
+    }
+  });
+  if (commentsChanged) hydrateComments(comments);
 }
 
 async function syncNow() {

@@ -1,5 +1,6 @@
 import { getGame, getRatings, updateGame, deleteGame, deleteRating } from '../db.js';
 import { RatingForm } from '../components/RatingForm.js';
+import { CommentSection } from '../components/CommentSection.js';
 import { RadarChart } from '../components/RadarChart.js';
 import { isCoreUnlocked } from '../settings.js';
 import { getUserId } from '../auth.js';
@@ -144,6 +145,10 @@ export function GameDetail(app, id) {
         </div>
       ` : ''}
 
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6 lg:col-span-3">
+        <div id="commentSectionContainer"></div>
+      </div>
+
       </div>
     </div>
   `;
@@ -151,6 +156,7 @@ export function GameDetail(app, id) {
   window.__onRatingChange = () => { GameDetail(app, id); };
 
   RatingForm(document.getElementById('ratingFormContainer'), game);
+  CommentSection(document.getElementById('commentSectionContainer'), game);
 
   if (coreUnlocked) {
     document.getElementById('editGameBtn').addEventListener('click', () => {

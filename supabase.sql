@@ -36,9 +36,20 @@ create table if not exists public.settings (
   value text not null default ''
 );
 
+create table if not exists public.comments (
+  id uuid primary key,
+  game_id text not null,
+  user_id text not null,
+  user_name text not null default '',
+  body text not null default '',
+  created_at bigint not null default 0,
+  updated_at bigint not null default 0
+);
+
 alter table public.games enable row level security;
 alter table public.ratings enable row level security;
 alter table public.settings enable row level security;
+alter table public.comments enable row level security;
 
 drop policy if exists games_anon_all on public.games;
 create policy games_anon_all on public.games for all to anon, authenticated using (true) with check (true);
@@ -46,14 +57,18 @@ drop policy if exists ratings_anon_all on public.ratings;
 create policy ratings_anon_all on public.ratings for all to anon, authenticated using (true) with check (true);
 drop policy if exists settings_anon_all on public.settings;
 create policy settings_anon_all on public.settings for all to anon, authenticated using (true) with check (true);
+drop policy if exists comments_anon_all on public.comments;
+create policy comments_anon_all on public.comments for all to anon, authenticated using (true) with check (true);
 
 grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete on public.games to anon, authenticated;
 grant select, insert, update, delete on public.ratings to anon, authenticated;
 grant select, insert, update, delete on public.settings to anon, authenticated;
+grant select, insert, update, delete on public.comments to anon, authenticated;
 
 alter publication supabase_realtime add table public.games;
 alter publication supabase_realtime add table public.ratings;
+alter publication supabase_realtime add table public.comments;
 
 insert into public.games (id, title, genre, is_open_world, year, description, image_url, created_at) values
   ('00000000-0000-0000-0000-000000000001', 'Sekiro: Shadows Die Twice', 'Action RPG', false, 2019, 'A brutal action RPG where you play as a shinobi fighting for revenge in a fractured Japan.', '', 1),
