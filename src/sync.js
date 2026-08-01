@@ -127,6 +127,7 @@ async function pushLocal() {
     const row = gameToRow(g);
     const remote = remoteGameById.get(g.id);
     if (remote && sameGame(row, remote)) return;
+    if (remote && !row.image_url) return;
     gameRows.push(row);
   });
 
@@ -158,12 +159,18 @@ async function pushLocal() {
 }
 
 async function pullAll() {
-  const { data: games, error: gErr } = await supabase.from('games').select('*').order('created_at', { ascending: true });
-  if (gErr) throw gErr;
-  const { data: ratings, error: rErr } = await supabase.from('ratings').select('*').order('created_at', { ascending: true });
-  if (rErr) throw rErr;
-  hydrateGames(sortGames((games || []).map(rowToGame)));
-  hydrateRatings((ratings || []).map(rowToRating));
+  const [gRes, rRes] = await Promise.all([
+    supabase.from('games').select('*').order('created_at', { ascending: true }),
+    supabase.from('ratings').select('*').order('created_at', { ascending: true }),
+  ]);
+  if (gRes.error) throw gRes.error;
+  if (rRes.error) throw rRes.error;
+  const pulledGames = (gRes.data || []).map(rowToGame);
+  const pulledRatings = (rRes.data || []).map(rowToRating);
+  if (pulledGames.length > 0) {
+    hydrateGames(sortGames(pulledGames));
+    hydrateRatings(pulledRatings);
+  }
 }
 
 async function pullSettings() {
@@ -189,8 +196,12 @@ function handleGameEvent(payload) {
   } else {
     const game = rowToGame(next);
     const idx = games.findIndex(g => g.id === game.id);
-    if (idx >= 0) games[idx] = game;
-    else games.push(game);
+    if (idx >= 0) {
+      if (!game.imageUrl && games[idx].imageUrl) game.imageUrl = games[idx].imageUrl;
+      games[idx] = game;
+    } else {
+      games.push(game);
+    }
     hydrateGames(sortGames(games));
   }
 }
