@@ -24,14 +24,14 @@ export function Home(app) {
     }
   });
 
-  const genres = [...new Set(games.map(g => g.genre))].sort();
+  const genres = [...new Set(games.flatMap(g => g.genres && g.genres.length ? g.genres : g.genre ? [g.genre] : []))].sort();
 
   const state = { search: '', genre: 'All', world: 'All', sort: 'top' };
 
   function filteredGames() {
     const list = games.filter(g => {
       if (state.search && !g.title.toLowerCase().includes(state.search)) return false;
-      if (state.genre !== 'All' && g.genre !== state.genre) return false;
+      if (state.genre !== 'All' && !(g.genres && g.genres.includes(state.genre))) return false;
       if (state.world === 'open' && !g.isOpenWorld) return false;
       if (state.world === 'linear' && g.isOpenWorld) return false;
       return true;

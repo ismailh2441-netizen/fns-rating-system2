@@ -4,10 +4,9 @@ import { CommentSection } from '../components/CommentSection.js';
 import { RadarChart } from '../components/RadarChart.js';
 import { isCoreUnlocked } from '../settings.js';
 import { getUserId } from '../auth.js';
-import { computeFNS, scoreColor, barColor, CRITERIA, CRITERIA_SHORT, initials, formatDate } from '../fns.js';
+import { computeFNS, scoreColor, barColor, CRITERIA, CRITERIA_SHORT, initials, formatDate, GENRES, PLATFORM_OPTIONS, genresText, platformEntries } from '../fns.js';
+import { normalizePlatforms } from '../util.js';
 import { processCoverFile } from '../cover.js';
-
-const GENRES = ['Action RPG', 'FPS', 'Metroidvania', 'Roguelike', 'Battle Royale', 'Adventure', 'Platformer', 'Simulation', 'Strategy', 'Puzzle', 'Fighting', 'Racing', 'Sports', 'Horror', 'Other'];
 
 export function GameDetail(app, id) {
   const game = getGame(id);
@@ -33,6 +32,8 @@ export function GameDetail(app, id) {
 
   const raterCount = fnsRatings.length;
 
+  const platEntries = platformEntries(game.platforms);
+
   app.innerHTML = `
     <div class="fade-in max-w-5xl mx-auto">
       <a href="#/" class="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 mb-4 transition-colors">
@@ -51,7 +52,7 @@ export function GameDetail(app, id) {
               ${game.isOpenWorld ? '<span class="px-2.5 py-0.5 text-xs font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-full">Open World</span>' : ''}
               ${game.year ? `<span class="px-2.5 py-0.5 text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full">${game.year}</span>` : ''}
             </div>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">${game.genre}</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">${genresText(game)}</p>
             ${game.description ? `<p class="text-sm text-gray-600 dark:text-gray-300 mt-3">${game.description}</p>` : ''}
             <p class="text-xs text-gray-400 dark:text-gray-500 mt-3">${raterCount} rating${raterCount !== 1 ? 's' : ''}</p>
           </div>
@@ -68,6 +69,23 @@ export function GameDetail(app, id) {
           </div>
         </div>
       </div>
+
+      ${platEntries.length > 0 ? `
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6">
+          <h2 class="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">Platforms</h2>
+          <div class="flex flex-wrap gap-2">
+            ${platEntries.map(p => {
+              const modes = [p.single ? 'Single-player' : '', p.multiplayer ? 'Multiplayer' : ''].filter(Boolean);
+              return `
+                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full border border-indigo-200 dark:border-indigo-800">
+                  ${p.platform}
+                  <span class="text-xs text-gray-500 dark:text-gray-400">${modes.join(' · ')}</span>
+                </span>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      ` : ''}
 
       <div id="editContainer"></div>
 
@@ -192,17 +210,21 @@ export function GameDetail(app, id) {
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Game Title</label>
             <input type="text" id="editTitle" value="${gameRef.title}" required class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
           </div>
-          <div class="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Genre</label>
-              <select id="editGenre" class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                ${GENRES.map(g => `<option value="${g}"${g === gameRef.genre ? ' selected' : ''}>${g}</option>`).join('')}
-              </select>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Genres</label>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-1">
+              ${GENRES.map(g => `
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" data-edit-genre="${g}" ${(gameRef.genres || []).includes(g) ? 'checked' : ''} class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">${g}</span>
+                </label>
+              `).join('')}
             </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Year</label>
-              <input type="number" id="editYear" value="${gameRef.year || ''}" min="1970" max="2100" class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            </div>
+            <div id="editGenreError" class="hidden mt-2 p-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 text-xs rounded">Select at least one genre.</div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Year</label>
+            <input type="number" id="editYear" value="${gameRef.year || ''}" min="1970" max="2100" class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cover Image</label>
@@ -226,6 +248,30 @@ export function GameDetail(app, id) {
             </label>
             <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Open World</span>
           </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Platforms</label>
+            <div class="space-y-3 mt-1">
+              ${PLATFORM_OPTIONS.map(name => {
+                const key = name.toLowerCase();
+                const val = editPlat[key] || { single: false, multiplayer: false };
+                return `
+                  <div class="flex items-center justify-between border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">${name}</span>
+                    <div class="flex gap-4">
+                      <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                        <input type="checkbox" data-edit-platform="${key}-single" ${val.single ? 'checked' : ''} class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-xs text-gray-600 dark:text-gray-300">Single-player</span>
+                      </label>
+                      <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                        <input type="checkbox" data-edit-platform="${key}-multiplayer" ${val.multiplayer ? 'checked' : ''} class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-xs text-gray-600 dark:text-gray-300">Multiplayer</span>
+                      </label>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
           <div class="flex gap-2">
             <button type="submit" class="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors">Save Changes</button>
             <button type="button" id="cancelEditBtn" class="px-4 py-2.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">Cancel</button>
@@ -240,6 +286,7 @@ export function GameDetail(app, id) {
     const editCoverError = document.getElementById('editCoverError');
     const editImageUrl = document.getElementById('editImageUrl');
     let editCoverData = gameRef.imageUrl || '';
+    const editPlat = normalizePlatforms(gameRef.platforms);
     if (editCoverData) showEditCoverPreview(editCoverData);
 
     function showEditCoverPreview(url) {
@@ -276,13 +323,29 @@ export function GameDetail(app, id) {
 
     document.getElementById('editGameForm').addEventListener('submit', function (e) {
       e.preventDefault();
+      const genres = [...document.querySelectorAll('[data-edit-genre]:checked')].map(cb => cb.value);
+      const editGenreError = document.getElementById('editGenreError');
+      if (genres.length === 0) {
+        editGenreError.classList.remove('hidden');
+        return;
+      }
+      editGenreError.classList.add('hidden');
+      const platforms = {};
+      PLATFORM_OPTIONS.forEach(name => {
+        const key = name.toLowerCase();
+        platforms[key] = {
+          single: document.querySelector(`[data-edit-platform="${key}-single"]`).checked,
+          multiplayer: document.querySelector(`[data-edit-platform="${key}-multiplayer"]`).checked,
+        };
+      });
       const data = {
         title: document.getElementById('editTitle').value.trim(),
-        genre: document.getElementById('editGenre').value,
+        genres,
         year: document.getElementById('editYear').value || '',
         imageUrl: editCoverData || editImageUrl.value.trim(),
         description: document.getElementById('editDescription').value.trim(),
         isOpenWorld: document.getElementById('editOpenWorld').checked,
+        platforms,
       };
       if (data.title) {
         try {

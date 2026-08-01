@@ -12,3 +12,23 @@ export function uuid() {
 export function normalizeTitle(title) {
   return title.toLowerCase().trim().replace(/[^a-z0-9]+/g, ' ').trim();
 }
+
+export function normalizeGenres(genres) {
+  let list = [];
+  if (Array.isArray(genres)) list = genres;
+  else if (typeof genres === 'string' && genres.trim()) list = genres.split(',');
+  return [...new Set(list.map(g => String(g).trim()).filter(Boolean))].sort();
+}
+
+export function normalizePlatforms(platforms) {
+  const keys = ['pc', 'console', 'mobile'];
+  const out = {};
+  keys.forEach(k => {
+    const p = platforms && typeof platforms === 'object' ? platforms[k] : null;
+    out[k] = {
+      single: !!(p && p.single),
+      multiplayer: !!(p && p.multiplayer),
+    };
+  });
+  return out;
+}

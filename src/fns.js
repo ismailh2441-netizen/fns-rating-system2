@@ -1,3 +1,5 @@
+import { normalizeGenres, normalizePlatforms } from './util.js';
+
 export const CRITERIA = [
   { key: 'gameplay', label: 'Gameplay', always: true },
   { key: 'story', label: 'Story', always: true },
@@ -26,6 +28,23 @@ export const CRITERIA_SHORT = {
 
 export function activeCriteria(game) {
   return CRITERIA.filter(c => c.always || game.isOpenWorld);
+}
+
+export const GENRES = ['Action RPG', 'FPS', 'Metroidvania', 'Roguelike', 'Battle Royale', 'Adventure', 'Platformer', 'Simulation', 'Strategy', 'Puzzle', 'Fighting', 'Racing', 'Sports', 'Horror', 'Other'];
+
+export const PLATFORM_OPTIONS = ['PC', 'Console', 'Mobile'];
+
+export function genresText(game) {
+  const list = game.genres && game.genres.length ? game.genres : (game.genre ? [game.genre] : []);
+  return normalizeGenres(list).join(', ');
+}
+
+export function platformEntries(platforms) {
+  const norm = normalizePlatforms(platforms);
+  return PLATFORM_OPTIONS.map(name => {
+    const e = norm[name.toLowerCase()] || { single: false, multiplayer: false };
+    return { platform: name, single: e.single, multiplayer: e.multiplayer };
+  }).filter(p => p.single || p.multiplayer);
 }
 
 export function computeFNS(rating) {

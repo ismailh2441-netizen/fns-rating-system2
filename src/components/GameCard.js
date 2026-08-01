@@ -1,4 +1,4 @@
-import { scoreColor, initials } from '../fns.js';
+import { scoreColor, initials, genresText } from '../fns.js';
 
 const GRADIENTS = [
   ['#667eea', '#764ba2'],
@@ -36,7 +36,7 @@ export function GameCard(game, fnsScore, raterCount) {
         </div>
         <div class="p-4">
           <h3 class="font-bold text-gray-900 dark:text-gray-100 truncate">${game.title}</h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">${game.genre}${year}</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">${genresText(game)}${year}</p>
           <div class="mt-3 flex items-end justify-between">
             <div>
               <span class="text-2xl font-extrabold ${scoreClass}">${score > 0 ? score.toFixed(1) : '—'}</span>

@@ -1,4 +1,4 @@
-import { uuid, normalizeTitle } from './util.js';
+import { uuid, normalizeTitle, normalizeGenres, normalizePlatforms } from './util.js';
 
 const GAMES_KEY = 'fns_games';
 const RATINGS_KEY = 'fns_ratings';
@@ -65,6 +65,8 @@ function migrate() {
     if (g.imageUrl === undefined) { g.imageUrl = ''; changed = true; }
     if (g.year === undefined || g.year === null) { g.year = ''; changed = true; }
     if (g.description === undefined) { g.description = ''; changed = true; }
+    if (!Array.isArray(g.genres)) { g.genres = normalizeGenres(g.genre); changed = true; }
+    if (g.platforms === undefined) { g.platforms = {}; changed = true; }
   });
   if (changed) save(GAMES_KEY, games);
 }
@@ -100,16 +102,17 @@ export function findGameByTitle(title) {
   return load(GAMES_KEY).find(g => normalizeTitle(g.title) === normalized) || null;
 }
 
-export function addGame({ title, genre, isOpenWorld, year, description, imageUrl }) {
+export function addGame({ title, genres, isOpenWorld, year, description, imageUrl, platforms }) {
   const games = load(GAMES_KEY);
   const game = {
     id: uuid(),
     title,
-    genre,
+    genres: normalizeGenres(genres),
     isOpenWorld,
     year: year || '',
     description: description || '',
     imageUrl: imageUrl || '',
+    platforms: normalizePlatforms(platforms),
     createdAt: Date.now(),
   };
   games.push(game);

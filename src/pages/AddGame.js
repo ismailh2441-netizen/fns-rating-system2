@@ -1,6 +1,7 @@
 import { addGame, findGameByTitle } from '../db.js';
 import { normalizeTitle } from '../util.js';
 import { processCoverFile } from '../cover.js';
+import { GENRES, PLATFORM_OPTIONS } from '../fns.js';
 
 export function AddGame(app) {
   app.innerHTML = `
@@ -22,33 +23,22 @@ export function AddGame(app) {
               This game is already added. <a id="dupLink" href="#" class="font-semibold underline">View it here</a>
             </div>
           </div>
-          <div class="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Genre</label>
-              <select id="genreSelect"
-                class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option value="Action RPG">Action RPG</option>
-                <option value="FPS">FPS</option>
-                <option value="Metroidvania">Metroidvania</option>
-                <option value="Roguelike">Roguelike</option>
-                <option value="Battle Royale">Battle Royale</option>
-                <option value="Adventure">Adventure</option>
-                <option value="Platformer">Platformer</option>
-                <option value="Simulation">Simulation</option>
-                <option value="Strategy">Strategy</option>
-                <option value="Puzzle">Puzzle</option>
-                <option value="Fighting">Fighting</option>
-                <option value="Racing">Racing</option>
-                <option value="Sports">Sports</option>
-                <option value="Horror">Horror</option>
-                <option value="Other">Other</option>
-              </select>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Genres</label>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-1">
+              ${GENRES.map(g => `
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" data-genre="${g}" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">${g}</span>
+                </label>
+              `).join('')}
             </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Year</label>
-              <input type="number" id="yearInput" min="1970" max="2100" placeholder="e.g. 2023"
-                class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            </div>
+            <div id="genreError" class="hidden mt-2 p-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 text-xs rounded">Select at least one genre.</div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Year</label>
+            <input type="number" id="yearInput" min="1970" max="2100" placeholder="e.g. 2023"
+              class="w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cover Image</label>
@@ -73,6 +63,29 @@ export function AddGame(app) {
               <div class="w-9 h-5 bg-gray-300 dark:bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
             </label>
             <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Open World</span>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Platforms</label>
+            <div class="space-y-3 mt-1">
+              ${PLATFORM_OPTIONS.map(name => {
+                const key = name.toLowerCase();
+                return `
+                  <div class="flex items-center justify-between border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">${name}</span>
+                    <div class="flex gap-4">
+                      <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                        <input type="checkbox" data-platform="${key}-single" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-xs text-gray-600 dark:text-gray-300">Single-player</span>
+                      </label>
+                      <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                        <input type="checkbox" data-platform="${key}-multiplayer" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-xs text-gray-600 dark:text-gray-300">Multiplayer</span>
+                      </label>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
           </div>
           <button type="submit" id="addGameBtn" class="w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             Add Game
@@ -148,11 +161,25 @@ export function AddGame(app) {
   document.getElementById('addGameForm').addEventListener('submit', function (e) {
     e.preventDefault();
     const title = titleInput.value.trim();
-    const genre = document.getElementById('genreSelect').value;
+    const genres = [...document.querySelectorAll('[data-genre]:checked')].map(cb => cb.value);
+    const genreError = document.getElementById('genreError');
+    if (genres.length === 0) {
+      genreError.classList.remove('hidden');
+      return;
+    }
+    genreError.classList.add('hidden');
     const year = document.getElementById('yearInput').value;
     const imageUrl = coverData || imageUrlInput.value.trim();
     const description = document.getElementById('descInput').value.trim();
     const isOpenWorld = document.getElementById('openWorldCheck').checked;
+    const platforms = {};
+    PLATFORM_OPTIONS.forEach(name => {
+      const key = name.toLowerCase();
+      platforms[key] = {
+        single: document.querySelector(`[data-platform="${key}-single"]`).checked,
+        multiplayer: document.querySelector(`[data-platform="${key}-multiplayer"]`).checked,
+      };
+    });
 
     if (!title) return;
 
@@ -164,7 +191,7 @@ export function AddGame(app) {
 
     let game;
     try {
-      game = addGame({ title, genre, isOpenWorld, year, description, imageUrl });
+      game = addGame({ title, genres, isOpenWorld, year, description, imageUrl, platforms });
     } catch (err) {
       coverError.textContent = err.message || 'Could not save the game.';
       coverError.classList.remove('hidden');

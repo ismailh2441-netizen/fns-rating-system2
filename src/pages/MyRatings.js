@@ -1,6 +1,6 @@
 import { getGames, getAllRatings, deleteRating } from '../db.js';
 import { getUserId } from '../auth.js';
-import { CRITERIA, scoreColor, CRITERIA_SHORT, formatDate } from '../fns.js';
+import { CRITERIA, scoreColor, CRITERIA_SHORT, formatDate, genresText } from '../fns.js';
 
 export function MyRatings(app) {
   const user = getUserId();
@@ -38,7 +38,7 @@ export function MyRatings(app) {
                 <div class="flex items-center justify-between gap-3 flex-wrap">
                   <div class="min-w-0">
                     <a href="#/game/${game.id}" class="font-bold text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">${game.title}</a>
-                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">${game.genre} · updated ${rating.updatedAt ? formatDate(rating.updatedAt) : '—'}</p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">${genresText(game)} · updated ${rating.updatedAt ? formatDate(rating.updatedAt) : '—'}</p>
                   </div>
                   <div class="flex items-center gap-4 shrink-0">
                     <span class="text-2xl font-extrabold ${scoreColor(rating.average)}">${rating.average.toFixed(1)}</span>

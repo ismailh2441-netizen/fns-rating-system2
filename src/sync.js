@@ -2,6 +2,7 @@ import { supabase, enabled } from './supabase.js';
 import { getGames, getAllRatings, getAllComments, hydrateGames, hydrateRatings, hydrateComments } from './db.js';
 import { getUserId, authReady, displayName } from './auth.js';
 import { cachePinHash } from './settings.js';
+import { normalizeGenres, normalizePlatforms } from './util.js';
 
 const anonDeviceId = getUserId().id;
 
@@ -13,11 +14,12 @@ function gameToRow(g) {
   return {
     id: g.id,
     title: g.title,
-    genre: g.genre || '',
+    genres: normalizeGenres(g.genres),
     is_open_world: !!g.isOpenWorld,
     year: String(g.year ?? ''),
     description: g.description || '',
     image_url: g.imageUrl || '',
+    platforms: normalizePlatforms(g.platforms),
     created_at: g.createdAt ?? Date.now(),
   };
 }
@@ -26,11 +28,12 @@ function rowToGame(r) {
   return {
     id: r.id,
     title: r.title,
-    genre: r.genre || '',
+    genres: normalizeGenres(r.genres),
     isOpenWorld: !!r.is_open_world,
     year: r.year != null ? String(r.year) : '',
     description: r.description || '',
     imageUrl: r.image_url || '',
+    platforms: normalizePlatforms(r.platforms),
     createdAt: r.created_at ?? Date.now(),
   };
 }
@@ -38,11 +41,12 @@ function rowToGame(r) {
 function sameGame(a, b) {
   return a.id === b.id
     && a.title === b.title
-    && a.genre === b.genre
+    && JSON.stringify(a.genres) === JSON.stringify(b.genres)
     && a.is_open_world === b.is_open_world
     && a.year === b.year
     && a.description === b.description
     && a.image_url === b.image_url
+    && JSON.stringify(a.platforms) === JSON.stringify(b.platforms)
     && a.created_at === b.created_at;
 }
 
@@ -131,7 +135,7 @@ async function pushLocal() {
   const ratings = getAllRatings();
 
   const [gRes, rRes] = await Promise.all([
-    supabase.from('games').select('id, title, genre, is_open_world, year, description, image_url, created_at'),
+    supabase.from('games').select('id, title, genres, is_open_world, year, description, image_url, platforms, created_at'),
     supabase.from('ratings').select('id, updated_at'),
   ]);
   if (gRes.error) throw gRes.error;
