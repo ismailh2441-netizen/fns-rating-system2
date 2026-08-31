@@ -1,6 +1,7 @@
 import { supabase, enabled } from './supabase.js';
 import { getGames, getAllRatings, getAllComments, hydrateGames, hydrateRatings, hydrateComments } from './db.js';
 import { getUserId, authReady, displayName } from './auth.js';
+import { getCritics, hydrateCritics } from './critics.js';
 import { cachePinHash } from './settings.js';
 import { normalizeGenres, normalizePlatforms } from './util.js';
 
@@ -120,6 +121,29 @@ function rowToComment(c) {
   };
 }
 
+function criticToRow(c) {
+  return {
+    username: c.username,
+    user_id: c.userId,
+    display_name: c.displayName || '',
+    game_ids: Array.isArray(c.gameIds) ? c.gameIds : [],
+    created_at: c.createdAt ?? Date.now(),
+    updated_at: c.updatedAt ?? Date.now(),
+  };
+}
+
+function rowToCritic(r) {
+  return {
+    id: r.username,
+    username: r.username,
+    userId: r.user_id,
+    displayName: r.display_name || '',
+    gameIds: Array.isArray(r.game_ids) ? r.game_ids : [],
+    createdAt: r.created_at ?? Date.now(),
+    updatedAt: r.updated_at ?? Date.now(),
+  };
+}
+
 function dispatchSync() {
   window.dispatchEvent(new CustomEvent('fns:sync'));
 }
@@ -209,6 +233,25 @@ async function pushLocal() {
   } catch (err) {
     console.warn('sync: comments push failed', err);
   }
+
+  try {
+    const { data: remoteCritics, error: crErr } = await supabase.from('critics').select('username, updated_at');
+    if (crErr) throw crErr;
+    const remoteCriticUpdated = new Map((remoteCritics || []).map(c => [c.username, c.updated_at]));
+    const criticRows = [];
+    getCritics().forEach(c => {
+      if (!c || !c.userId) return;
+      const row = criticToRow(c);
+      if (remoteCriticUpdated.get(c.username) === row.updated_at) return;
+      criticRows.push(row);
+    });
+    if (criticRows.length) {
+      const { error } = await supabase.from('critics').upsert(criticRows, { onConflict: 'username' });
+      if (error) throw error;
+    }
+  } catch (err) {
+    console.warn('sync: critics push failed', err);
+  }
 }
 
 async function pullAll() {
@@ -230,6 +273,13 @@ async function pullAll() {
     hydrateComments((data || []).map(rowToComment));
   } catch (err) {
     console.warn('sync: comments pull failed', err);
+  }
+  try {
+    const { data, error } = await supabase.from('critics').select('*').order('created_at', { ascending: true });
+    if (error) throw error;
+    hydrateCritics((data || []).map(rowToCritic));
+  } catch (err) {
+    console.warn('sync: critics pull failed', err);
   }
 }
 
@@ -299,6 +349,23 @@ function handleCommentEvent(payload) {
   }
 }
 
+function handleCriticEvent(payload) {
+  const { eventType, new: next, old: prev } = payload;
+  const critics = getCritics();
+  if (eventType === 'DELETE') {
+    const username = (prev && prev.username) || (next && next.username);
+    if (username) hydrateCritics(critics.filter(c => c.username !== username));
+  } else {
+    if (!next) return;
+    const critic = rowToCritic(next);
+    if (!critic.username) return;
+    const idx = critics.findIndex(c => c.username === critic.username);
+    if (idx >= 0) critics[idx] = critic;
+    else critics.push(critic);
+    hydrateCritics(critics);
+  }
+}
+
 function subscribe() {
   if (subscribed) return;
   subscribed = true;
@@ -312,6 +379,11 @@ function subscribe() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, handleCommentEvent)
     .subscribe(status => {
       if (status !== 'SUBSCRIBED') console.warn('sync: comments realtime status', status);
+    });
+  supabase.channel('fns-critics-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'critics' }, handleCriticEvent)
+    .subscribe(status => {
+      if (status !== 'SUBSCRIBED') console.warn('sync: critics realtime status', status);
     });
 }
 
@@ -338,6 +410,8 @@ window.addEventListener('fns:local-change', e => {
     if (d.type === 'rating-delete') return supabase.from('ratings').delete().eq('game_id', d.gameId).eq('user_id', d.userId);
     if (d.type === 'comment-upsert') return supabase.from('comments').upsert(commentToRow(d.comment), { onConflict: 'id' });
     if (d.type === 'comment-delete') return supabase.from('comments').delete().eq('id', d.id);
+    if (d.type === 'critic-upsert') return supabase.from('critics').upsert(criticToRow(d.critic), { onConflict: 'username' });
+    if (d.type === 'critic-delete') return supabase.from('critics').delete().eq('username', d.username);
     return null;
   })();
   if (p) p.then(({ error } = {}) => { if (error) console.error('sync: push', error); }).catch(err => console.error('sync: push', err));
@@ -369,6 +443,17 @@ function adoptDeviceRatings(authId, authName) {
     }
   });
   if (commentsChanged) hydrateComments(comments);
+  const critics = getCritics();
+  let criticsChanged = false;
+  critics.forEach(c => {
+    if (c && c.userId === anonDeviceId) {
+      c.userId = authId;
+      if (authName) c.displayName = authName;
+      c.updatedAt = Date.now();
+      criticsChanged = true;
+    }
+  });
+  if (criticsChanged) hydrateCritics(critics);
 }
 
 async function syncNow() {

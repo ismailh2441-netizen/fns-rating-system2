@@ -4,6 +4,7 @@ import { CommentSection } from '../components/CommentSection.js';
 import { RadarChart } from '../components/RadarChart.js';
 import { isCoreUnlocked } from '../settings.js';
 import { getUserId } from '../auth.js';
+import { getCriticByUserId } from '../critics.js';
 import { computeFNS, scoreColor, barColor, CRITERIA, CRITERIA_SHORT, initials, formatDate, GENRES, PLATFORM_OPTIONS, genresText, platformEntries } from '../fns.js';
 import { normalizePlatforms } from '../util.js';
 import { processCoverFile } from '../cover.js';
@@ -134,6 +135,7 @@ export function GameDetail(app, id) {
           <div id="ratingsList" class="space-y-4">
             ${fnsRatings.map(r => {
               const isOwn = r.userId === user.id;
+              const isCritic = !!getCriticByUserId(r.userId);
               return `
                 <div class="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/40 rounded-lg">
                   <div class="w-9 h-9 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center font-bold text-indigo-600 dark:text-indigo-400 text-sm shrink-0">${initials(r.userName)}</div>
@@ -141,6 +143,7 @@ export function GameDetail(app, id) {
                     <div class="flex items-center justify-between gap-2">
                       <div class="min-w-0">
                         <span class="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">${r.userName || 'Anonymous'}</span>
+                        ${isCritic ? '<span class="px-1.5 py-0.5 text-[10px] font-bold bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400 rounded ml-1 align-middle">CRITIC</span>' : ''}
                         <span class="text-xs text-gray-400 dark:text-gray-500 ml-2">${r.updatedAt ? formatDate(r.updatedAt) : ''}</span>
                       </div>
                       <div class="flex items-center gap-3 shrink-0">

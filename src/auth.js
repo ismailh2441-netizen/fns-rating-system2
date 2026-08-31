@@ -1,5 +1,6 @@
 import { uuid } from './util.js';
 import { supabase, enabled } from './supabase.js';
+import { getCriticByUserId } from './critics.js';
 
 const USER_KEY = 'fns_user';
 
@@ -61,6 +62,15 @@ export function getUserId() {
     return { id: u.id, name: displayName(u) || 'Anonymous', email: u.email || '' };
   }
   return anonUser();
+}
+
+export function getMyCritic() {
+  return getCriticByUserId(getUserId().id) || null;
+}
+
+export function getMyUsername() {
+  const critic = getMyCritic();
+  return critic ? critic.username : '';
 }
 
 export function setUserName(name) {

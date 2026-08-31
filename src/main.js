@@ -4,6 +4,7 @@ import { GameDetail } from './pages/GameDetail.js';
 import { AddGame } from './pages/AddGame.js';
 import { MyRatings } from './pages/MyRatings.js';
 import { Compare } from './pages/Compare.js';
+import { Critics } from './pages/Critics.js';
 import { initSync } from './sync.js';
 import { authReady, onAuthChange } from './auth.js';
 
@@ -27,6 +28,8 @@ function router() {
     MyRatings(app);
   } else if (hash === '/compare') {
     Compare(app);
+  } else if (hash === '/critics' || hash.startsWith('/critic/')) {
+    Critics(app);
   } else {
     location.hash = '/';
   }

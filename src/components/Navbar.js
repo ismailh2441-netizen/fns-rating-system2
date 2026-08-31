@@ -1,5 +1,6 @@
 import { getTheme, toggleTheme } from '../theme.js';
-import { getUserId, setUserName, isSignedIn, signInWithGoogle, signOut } from '../auth.js';
+import { getUserId, setUserName, getMyUsername, isSignedIn, signInWithGoogle, signOut } from '../auth.js';
+import { claimUsername, deleteCritic } from '../critics.js';
 import { hasPin, isCoreUnlocked, unlockCore, lockCore, setPinAsync } from '../settings.js';
 
 let navOpen = false;
@@ -61,6 +62,7 @@ export function Navbar() {
             <a href="#/" class="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors whitespace-nowrap">Home</a>
             <a href="#/my" class="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors whitespace-nowrap">My Ratings</a>
             <a href="#/compare" class="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors whitespace-nowrap">Compare</a>
+            <a href="#/critics" class="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors whitespace-nowrap">Critics</a>
             <a href="#/add" class="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors whitespace-nowrap">Add Game</a>
             <button id="themeToggle" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors shrink-0" title="Toggle theme">
               ${isDark ? '<svg class="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>' : '<svg class="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>'}
@@ -68,6 +70,7 @@ export function Navbar() {
             <button id="userButton" aria-expanded="${navOpen}" aria-haspopup="true" class="flex items-center gap-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors shrink-0">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
               <span id="userName" class="max-w-[80px] truncate">${user.name}</span>
+              ${getMyUsername() ? '<span class="px-1.5 py-0.5 text-[10px] font-bold bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400 rounded">CRITIC</span>' : ''}
               ${coreUnlocked ? '<span class="px-1.5 py-0.5 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 rounded">CORE</span>' : ''}
             </button>
           </div>
@@ -101,6 +104,16 @@ export function Navbar() {
             <button id="nameSaveBtn" class="mt-2 w-full px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700 transition-colors">Save</button>
           </div>
         `}
+        <div class="p-3">
+          <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Unique Username</p>
+          <p class="text-[10px] text-gray-400 dark:text-gray-500 mb-1.5">Claim a unique name to become a critic and build your Top 10.</p>
+          <div id="usernameError" class="hidden mb-2 p-2 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 text-xs rounded">Wrong username</div>
+          <div class="flex gap-2">
+            <input id="usernameInput" type="text" placeholder="your unique name" value="${getMyUsername() || ''}" class="flex-1 min-w-0 px-2 py-1 text-sm border rounded dark:bg-gray-600 dark:border-gray-500 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            ${getMyUsername() ? '<button id="usernameRemoveBtn" class="px-2 py-1 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded transition-colors shrink-0">Remove</button>' : '<button id="usernameSaveBtn" class="px-2 py-1 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 rounded transition-colors shrink-0">Claim</button>'}
+          </div>
+          ${getMyUsername() ? '<p class="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1.5">&#10003; You are a critic as @' + getMyUsername() + '</p>' : ''}
+        </div>
         <div class="p-3">
           <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Core Mode</p>
           ${coreUnlocked ? `
@@ -136,6 +149,36 @@ export function Navbar() {
     Navbar();
     refreshRoute();
   });
+
+  const usernameSaveBtn = document.getElementById('usernameSaveBtn');
+  if (usernameSaveBtn) {
+    usernameSaveBtn.addEventListener('click', () => {
+      const usernameInput = document.getElementById('usernameInput');
+      const usernameError = document.getElementById('usernameError');
+      const user = getUserId();
+      try {
+        claimUsername(usernameInput.value, user.id, user.name);
+        usernameError.classList.add('hidden');
+        Navbar();
+        refreshRoute();
+      } catch (err) {
+        usernameError.textContent = err.message;
+        usernameError.classList.remove('hidden');
+      }
+    });
+  }
+
+  const usernameRemoveBtn = document.getElementById('usernameRemoveBtn');
+  if (usernameRemoveBtn) {
+    usernameRemoveBtn.addEventListener('click', () => {
+      const u = getMyUsername();
+      if (u && confirm(`Remove your critic account (@${u})? Your Top 10 will be removed.`)) {
+        deleteCritic(u);
+        Navbar();
+        refreshRoute();
+      }
+    });
+  }
 
   const googleBtn = document.getElementById('googleSignInBtn');
   if (googleBtn) {
