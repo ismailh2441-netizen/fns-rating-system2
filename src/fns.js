@@ -30,7 +30,7 @@ export function activeCriteria(game) {
   return CRITERIA.filter(c => c.always || game.isOpenWorld);
 }
 
-export const GENRES = ['Action RPG', 'FPS', 'Metroidvania', 'Roguelike', 'Battle Royale', 'Adventure', 'Platformer', 'Simulation', 'Strategy', 'Puzzle', 'Fighting', 'Racing', 'Sports', 'Horror', 'Other'];
+export const GENRES = ['Action', 'Action RPG', 'Adventure', 'Battle Royale', 'Fighting', 'FPS', 'Horror', 'Indie', 'Metroidvania', 'Open World', 'Other', 'Platformer', 'Puzzle', 'Racing', 'Rhythm', 'RPG', 'Roguelike', 'Shooter', 'Simulation', 'Sports', 'Strategy', 'Survival'];
 
 export const PLATFORM_OPTIONS = ['PC', 'Console', 'Mobile'];
 
