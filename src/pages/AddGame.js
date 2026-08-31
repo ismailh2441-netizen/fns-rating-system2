@@ -1,5 +1,5 @@
 import { addGame, findGameByTitle } from '../db.js';
-import { normalizeTitle } from '../util.js';
+import { normalizeTitle, normalizeCoverUrl } from '../util.js';
 import { processCoverFile } from '../cover.js';
 import { GENRES, PLATFORM_OPTIONS } from '../fns.js';
 
@@ -135,7 +135,7 @@ export function AddGame(app) {
 
   imageUrlInput.addEventListener('input', () => {
     coverData = '';
-    showCoverPreview(imageUrlInput.value);
+    showCoverPreview(normalizeCoverUrl(imageUrlInput.value));
   });
 
   function checkDuplicate() {
@@ -169,7 +169,7 @@ export function AddGame(app) {
     }
     genreError.classList.add('hidden');
     const year = document.getElementById('yearInput').value;
-    const imageUrl = coverData || imageUrlInput.value.trim();
+    const imageUrl = coverData || normalizeCoverUrl(imageUrlInput.value);
     const description = document.getElementById('descInput').value.trim();
     const isOpenWorld = document.getElementById('openWorldCheck').checked;
     const platforms = {};

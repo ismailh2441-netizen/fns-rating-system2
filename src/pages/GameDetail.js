@@ -6,7 +6,7 @@ import { isCoreUnlocked } from '../settings.js';
 import { getUserId } from '../auth.js';
 import { getCriticByUserId } from '../critics.js';
 import { computeFNS, scoreColor, barColor, CRITERIA, CRITERIA_SHORT, initials, formatDate, GENRES, PLATFORM_OPTIONS, genresText, platformEntries } from '../fns.js';
-import { normalizePlatforms } from '../util.js';
+import { normalizePlatforms, normalizeCoverUrl } from '../util.js';
 import { processCoverFile } from '../cover.js';
 
 export function GameDetail(app, id) {
@@ -321,7 +321,7 @@ export function GameDetail(app, id) {
 
     editImageUrl.addEventListener('input', () => {
       editCoverData = '';
-      showEditCoverPreview(editImageUrl.value);
+      showEditCoverPreview(normalizeCoverUrl(editImageUrl.value));
     });
 
     document.getElementById('editGameForm').addEventListener('submit', function (e) {
@@ -345,7 +345,7 @@ export function GameDetail(app, id) {
         title: document.getElementById('editTitle').value.trim(),
         genres,
         year: document.getElementById('editYear').value || '',
-        imageUrl: editCoverData || editImageUrl.value.trim(),
+        imageUrl: editCoverData || normalizeCoverUrl(editImageUrl.value),
         description: document.getElementById('editDescription').value.trim(),
         isOpenWorld: document.getElementById('editOpenWorld').checked,
         platforms,

@@ -32,3 +32,21 @@ export function normalizePlatforms(platforms) {
   });
   return out;
 }
+
+export function normalizeCoverUrl(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+  try {
+    const url = new URL(value);
+    const params = url.searchParams;
+    if (params.has('imgurl')) {
+      const extracted = params.get('imgurl');
+      if (extracted) return extracted;
+    }
+    if (params.has('url')) {
+      const u = params.get('url');
+      if (u) return u;
+    }
+  } catch {}
+  return value;
+}
