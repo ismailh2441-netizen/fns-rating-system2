@@ -208,7 +208,7 @@ function pickerGrid(list, search) {
     return `<p class="text-sm text-gray-400 dark:text-gray-500">${search ? 'No games match your search.' : 'No more games in the library to add.'}</p>`;
   }
   return `
-    <div id="criticPicker" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       ${list.map(g => `
         <button data-add-pick="${g.id}" class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/40 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-left">
           ${g.imageUrl ? `<img src="${g.imageUrl}" alt="" onerror="this.remove()" class="w-10 h-12 object-cover rounded shrink-0 hidden sm:block">` : ''}
@@ -234,14 +234,11 @@ function wirePicker(app, userRef, gameMap, pickedIds) {
     gridEl.innerHTML = pickerGrid(list, q);
   });
 
-  const pickerEl = app.querySelector('#criticPicker');
-  if (pickerEl) {
-    pickerEl.addEventListener('click', e => {
-      const add = e.target.closest('[data-add-pick]');
-      if (add && userRef) {
-        addToTop10(userRef, add.dataset.addPick);
-        renderCritic(app, userRef);
-      }
-    });
-  }
+  gridEl.addEventListener('click', e => {
+    const add = e.target.closest('[data-add-pick]');
+    if (add && userRef) {
+      addToTop10(userRef, add.dataset.addPick);
+      renderCritic(app, userRef);
+    }
+  });
 }
