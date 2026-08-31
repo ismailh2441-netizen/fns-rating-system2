@@ -144,6 +144,30 @@ function rowToCritic(r) {
   };
 }
 
+function isOwnCriticRow(row) {
+  if (!row) return false;
+  try { return row.userId === getUserId().id; } catch { return false; }
+}
+
+function mergeCritics(localCritics, remoteCritics, opts) {
+  const merged = new Map();
+  (localCritics || []).forEach(c => { if (c && c.username) merged.set(c.username, { ...c }); });
+  (remoteCritics || []).forEach(rc => {
+    if (!rc || !rc.username) return;
+    const lc = merged.get(rc.username);
+    if (lc) {
+      if ((rc.updatedAt || 0) >= (lc.updatedAt || 0)) merged.set(rc.username, rc);
+    } else {
+      merged.set(rc.username, rc);
+    }
+  });
+  const result = Array.from(merged.values());
+  if (opts && opts.keepLocalOnlyOnOwn) {
+    result.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  }
+  return result;
+}
+
 function dispatchSync() {
   window.dispatchEvent(new CustomEvent('fns:sync'));
 }
@@ -277,7 +301,8 @@ async function pullAll() {
   try {
     const { data, error } = await supabase.from('critics').select('*').order('created_at', { ascending: true });
     if (error) throw error;
-    hydrateCritics((data || []).map(rowToCritic));
+    const remoteCritics = (data || []).map(rowToCritic);
+    hydrateCritics(mergeCritics(getCritics(), remoteCritics));
   } catch (err) {
     console.warn('sync: critics pull failed', err);
   }
@@ -359,6 +384,10 @@ function handleCriticEvent(payload) {
     if (!next) return;
     const critic = rowToCritic(next);
     if (!critic.username) return;
+    if (isOwnCriticRow(critic)) {
+      const local = critics.find(c => c.username === critic.username);
+      if (local && (local.updatedAt || 0) > (critic.updatedAt || 0)) return;
+    }
     const idx = critics.findIndex(c => c.username === critic.username);
     if (idx >= 0) critics[idx] = critic;
     else critics.push(critic);
