@@ -24,7 +24,40 @@ function initials2(name) {
 }
 
 function renderBrowse(app) {
-  const critics = getCritics().sort((a, b) => a.username.localeCompare(b.username));
+  const allCritics = getCritics().sort((a, b) => a.username.localeCompare(b.username));
+  let search = '';
+
+  function criticGrid(list) {
+    if (list.length === 0) {
+      return `
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-12 text-center">
+          <p class="text-gray-400 dark:text-gray-500">${criticsTotal === 0 ? 'No critics yet. Be the first!' : 'No critics match your search.'}</p>
+          <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">${criticsTotal === 0 ? 'Open your user menu and claim a unique username.' : 'Try a different name or username.'}</p>
+        </div>
+      `;
+    }
+    return `
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        ${list.map(c => `
+          <a href="#/critic/${encodeURIComponent(c.username)}" class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-5 hover:border-purple-300 dark:hover:border-purple-700 transition-colors">
+            <div class="flex items-center gap-3">
+              <span class="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center font-bold text-purple-600 dark:text-purple-300 text-sm shrink-0">${initials2(c.displayName)}</span>
+              <div class="min-w-0">
+                <p class="font-semibold text-gray-900 dark:text-gray-100 truncate">${c.displayName || 'Anonymous'}</p>
+                <p class="text-xs text-purple-600 dark:text-purple-400">@${c.username}</p>
+              </div>
+            </div>
+            <div class="mt-3 flex items-center gap-4 text-xs text-gray-400 dark:text-gray-500">
+              <span>${(c.gameIds || []).length}/10 Top 10</span>
+              <span>${ratingCount(c.userId)} rating${ratingCount(c.userId) !== 1 ? 's' : ''}</span>
+            </div>
+          </a>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  const criticsTotal = allCritics.length;
 
   app.innerHTML = `
     <div class="fade-in max-w-5xl mx-auto">
@@ -35,32 +68,27 @@ function renderBrowse(app) {
       <h1 class="text-3xl font-extrabold text-gray-900 dark:text-gray-100 mb-1">Critics</h1>
       <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">FNS critics and their Top 10 games. Claim a unique username in your menu to become a critic.</p>
 
-      ${critics.length === 0 ? `
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-12 text-center">
-          <p class="text-gray-400 dark:text-gray-500">No critics yet. Be the first!</p>
-          <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Open your user menu and claim a unique username.</p>
-        </div>
-      ` : `
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          ${critics.map(c => `
-            <a href="#/critic/${encodeURIComponent(c.username)}" class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-5 hover:border-purple-300 dark:hover:border-purple-700 transition-colors">
-              <div class="flex items-center gap-3">
-                <span class="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center font-bold text-purple-600 dark:text-purple-300 text-sm shrink-0">${initials2(c.displayName)}</span>
-                <div class="min-w-0">
-                  <p class="font-semibold text-gray-900 dark:text-gray-100 truncate">${c.displayName || 'Anonymous'}</p>
-                  <p class="text-xs text-purple-600 dark:text-purple-400">@${c.username}</p>
-                </div>
-              </div>
-              <div class="mt-3 flex items-center gap-4 text-xs text-gray-400 dark:text-gray-500">
-                <span>${(c.gameIds || []).length}/10 Top 10</span>
-                <span>${ratingCount(c.userId)} rating${ratingCount(c.userId) !== 1 ? 's' : ''}</span>
-              </div>
-            </a>
-          `).join('')}
-        </div>
-      `}
+      <input id="criticSearch" type="text" placeholder="Search critics by name or username..." class="w-full mb-6 px-3 py-2 text-sm border rounded-lg bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <div id="criticGrid"></div>
     </div>
   `;
+
+  const grid = document.getElementById('criticGrid');
+
+  function renderGrid() {
+    const q = search;
+    const list = q
+      ? allCritics.filter(c => (c.displayName || '').toLowerCase().includes(q) || (c.username || '').toLowerCase().includes(q))
+      : allCritics;
+    grid.innerHTML = criticGrid(list);
+  }
+
+  document.getElementById('criticSearch').addEventListener('input', function () {
+    search = this.value.toLowerCase().trim();
+    renderGrid();
+  });
+
+  renderGrid();
 }
 
 function renderCritic(app, username) {
@@ -151,21 +179,14 @@ function renderCritic(app, username) {
     });
   }
 
-  const picker = app.querySelector('#criticPicker');
-  if (picker) {
-    picker.addEventListener('click', e => {
-      const add = e.target.closest('[data-add-pick]');
-      if (add) {
-        addToTop10(critic.username, add.dataset.addPick);
-        renderCritic(app, username);
-      }
-    });
+  if (isOwn) {
+    wirePicker(app, critic.username, gameMap, pickedIds);
   }
 }
 
 function renderPicker(gameMap, pickedIds, currentCount) {
   const remaining = 10 - currentCount;
-  const candidates = Object.keys(gameMap)
+  const allCandidates = Object.keys(gameMap)
     .map(id => gameMap[id])
     .filter(g => !pickedIds.has(g.id));
   if (remaining <= 0) return '';
@@ -174,19 +195,53 @@ function renderPicker(gameMap, pickedIds, currentCount) {
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6 mt-6">
       <h2 class="text-lg font-bold mb-1 text-gray-900 dark:text-gray-100">Add to Top 10</h2>
       <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">Pick ${remaining} more game${remaining !== 1 ? 's' : ''} from the library.</p>
-      ${candidates.length === 0 ? '<p class="text-sm text-gray-400 dark:text-gray-500">No more games in the library to add.</p>' : `
-        <div id="criticPicker" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          ${candidates.map(g => `
-            <button data-add-pick="${g.id}" class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/40 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-left">
-              ${g.imageUrl ? `<img src="${g.imageUrl}" alt="" onerror="this.remove()" class="w-10 h-12 object-cover rounded shrink-0 hidden sm:block">` : ''}
-              <span class="min-w-0">
-                <span class="block font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">${g.title}</span>
-                <span class="block text-xs text-gray-400 dark:text-gray-500 truncate">${genresText(g)}</span>
-              </span>
-            </button>
-          `).join('')}
-        </div>
-      `}
+      <input id="pickerSearch" type="text" placeholder="Search games to add..." class="w-full mb-4 px-3 py-2 text-sm border rounded-lg bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <div id="pickerGrid">
+        ${pickerGrid(allCandidates, '')}
+      </div>
     </div>
   `;
+}
+
+function pickerGrid(list, search) {
+  if (list.length === 0) {
+    return `<p class="text-sm text-gray-400 dark:text-gray-500">${search ? 'No games match your search.' : 'No more games in the library to add.'}</p>`;
+  }
+  return `
+    <div id="criticPicker" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      ${list.map(g => `
+        <button data-add-pick="${g.id}" class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/40 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-left">
+          ${g.imageUrl ? `<img src="${g.imageUrl}" alt="" onerror="this.remove()" class="w-10 h-12 object-cover rounded shrink-0 hidden sm:block">` : ''}
+          <span class="min-w-0">
+            <span class="block font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">${g.title}</span>
+            <span class="block text-xs text-gray-400 dark:text-gray-500 truncate">${genresText(g)}</span>
+          </span>
+        </button>
+      `).join('')}
+    </div>
+  `;
+}
+
+function wirePicker(app, userRef, gameMap, pickedIds) {
+  const allCandidates = Object.keys(gameMap).map(id => gameMap[id]).filter(g => !pickedIds.has(g.id));
+  const gridEl = app.querySelector('#pickerGrid');
+  const searchEl = app.querySelector('#pickerSearch');
+  if (!gridEl || !searchEl) return;
+
+  searchEl.addEventListener('input', function () {
+    const q = this.value.toLowerCase().trim();
+    const list = q ? allCandidates.filter(g => g.title.toLowerCase().includes(q)) : allCandidates;
+    gridEl.innerHTML = pickerGrid(list, q);
+  });
+
+  const pickerEl = app.querySelector('#criticPicker');
+  if (pickerEl) {
+    pickerEl.addEventListener('click', e => {
+      const add = e.target.closest('[data-add-pick]');
+      if (add && userRef) {
+        addToTop10(userRef, add.dataset.addPick);
+        renderCritic(app, userRef);
+      }
+    });
+  }
 }
