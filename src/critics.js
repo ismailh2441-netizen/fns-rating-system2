@@ -1,18 +1,14 @@
 import { uuid } from './util.js';
+import { storageGet, storageSet } from './storage.js';
 
 const CRITICS_KEY = 'fns_critics';
 
 function load() {
-  try { return JSON.parse(localStorage.getItem(CRITICS_KEY)) || []; } catch { return []; }
+  try { return JSON.parse(storageGet(CRITICS_KEY)) || []; } catch { return []; }
 }
 
 function save(critics) {
-  try {
-    localStorage.setItem(CRITICS_KEY, JSON.stringify(critics));
-    return true;
-  } catch {
-    return false;
-  }
+  return storageSet(CRITICS_KEY, JSON.stringify(critics));
 }
 
 function notify(type, detail) {

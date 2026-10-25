@@ -172,6 +172,24 @@ function dispatchSync() {
   window.dispatchEvent(new CustomEvent('fns:sync'));
 }
 
+function describeError(err) {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return 'You appear to be offline.';
+  }
+  if (!err) return 'Could not reach the cloud database.';
+  if (typeof err === 'string') return err;
+  const message = err.message || err.error_description || err.error || err.details;
+  if (message) return String(message);
+  if (err.code) return `Request failed (${err.code}).`;
+  return 'Could not reach the cloud database.';
+}
+
+function reportSync(detail) {
+  try {
+    window.dispatchEvent(new CustomEvent('fns:sync-status', { detail }));
+  } catch {}
+}
+
 function sortGames(games) {
   return games.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 }
@@ -287,14 +305,41 @@ async function pullAll() {
   if (rRes.error) throw rRes.error;
   const pulledGames = (gRes.data || []).map(rowToGame);
   const pulledRatings = (rRes.data || []).map(rowToRating);
-  if (pulledGames.length > 0) {
-    hydrateGames(sortGames(pulledGames));
-    hydrateRatings(pulledRatings);
-  }
+
+  // Merge, never overwrite: the remote DB only holds the shared seed games,
+  // so a blanket replace would wipe every locally-added game (and its ratings
+  // and comments). Remote rows are authoritative for ids that exist on both
+  // sides; local-only rows (offline additions, pending sync) are kept.
+  const remoteGameIds = new Set(pulledGames.map(g => g.id));
+  const localGames = getGames();
+  const mergedGames = pulledGames.map(game => {
+    const local = localGames.find(g => g.id === game.id);
+    // Preserve a locally-uploaded cover if the remote row has none.
+    if (!game.imageUrl && local && local.imageUrl) game.imageUrl = local.imageUrl;
+    return game;
+  });
+  localGames.forEach(g => {
+    if (g && g.id && !remoteGameIds.has(g.id)) mergedGames.push(g);
+  });
+  hydrateGames(sortGames(mergedGames));
+
+  const remoteRatingIds = new Set(pulledRatings.map(r => r.id));
+  const mergedRatings = pulledRatings.slice();
+  getAllRatings().forEach(r => {
+    if (r && r.id && !remoteRatingIds.has(r.id)) mergedRatings.push(r);
+  });
+  hydrateRatings(mergedRatings);
+
   try {
     const { data, error } = await supabase.from('comments').select('*').order('created_at', { ascending: true });
     if (error) throw error;
-    hydrateComments((data || []).map(rowToComment));
+    const pulledComments = (data || []).map(rowToComment);
+    const remoteCommentIds = new Set(pulledComments.map(c => c.id));
+    const mergedComments = pulledComments.slice();
+    getAllComments().forEach(c => {
+      if (c && c.id && !remoteCommentIds.has(c.id)) mergedComments.push(c);
+    });
+    hydrateComments(mergedComments);
   } catch (err) {
     console.warn('sync: comments pull failed', err);
   }
@@ -486,27 +531,42 @@ function adoptDeviceRatings(authId, authName) {
 }
 
 async function syncNow() {
-  if (!enabled) return;
+  if (!enabled) {
+    reportSync({ ok: false, message: 'Cloud sync is not configured for this deployment.' });
+    return;
+  }
+  let firstError = null;
   try {
     await pushLocal();
   } catch (err) {
-    console.error('sync: push failed', err);
+    firstError = firstError || err;
+    console.error('sync: push failed', describeError(err), err);
   }
   try {
     await pullAll();
   } catch (err) {
-    console.error('sync: pull failed', err);
+    firstError = firstError || err;
+    console.error('sync: pull failed', describeError(err), err);
   }
   try {
     await pullSettings();
   } catch (err) {
-    console.warn('sync: settings pull failed', err);
+    firstError = firstError || err;
+    console.warn('sync: settings pull failed', describeError(err), err);
+  }
+  if (firstError) {
+    reportSync({ ok: false, message: describeError(firstError) });
+  } else {
+    reportSync({ ok: true });
   }
   dispatchSync();
 }
 
 export async function initSync() {
-  if (!enabled) return;
+  if (!enabled) {
+    reportSync({ ok: false, message: 'Cloud sync is not configured for this deployment.' });
+    return;
+  }
   const user = await authReady();
   if (user) {
     adoptDeviceRatings(user.id, displayName(user));
@@ -514,3 +574,18 @@ export async function initSync() {
   await syncNow();
   subscribe();
 }
+
+let retrying = false;
+
+window.addEventListener('fns:sync-retry', async () => {
+  if (retrying) return;
+  retrying = true;
+  reportSync({ pending: true });
+  try {
+    await initSync();
+  } catch (err) {
+    reportSync({ ok: false, message: describeError(err) });
+  } finally {
+    retrying = false;
+  }
+});

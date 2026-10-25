@@ -7,8 +7,11 @@ import { Compare } from './pages/Compare.js';
 import { Critics } from './pages/Critics.js';
 import { initSync } from './sync.js';
 import { authReady, onAuthChange } from './auth.js';
+import { initStatusBanner } from './components/StatusBanner.js';
 
 const app = document.getElementById('app');
+
+initStatusBanner();
 
 function router() {
   const hash = location.hash.slice(1) || '/';
@@ -36,11 +39,23 @@ function router() {
 }
 
 window.addEventListener('hashchange', router);
-window.addEventListener('load', async () => {
-  await authReady();
+
+window.addEventListener('load', () => {
+  // Render immediately from the data saved on this PC. Auth and network sync
+  // run in the background so a slow/unreachable backend can never leave the
+  // page blank.
   Navbar();
   router();
-  initSync();
+
+  authReady()
+    .catch(() => null)
+    .then(() => {
+      Navbar();
+      router();
+    })
+    .finally(() => {
+      initSync().catch(err => console.warn('sync: init failed', err));
+    });
 });
 
 window.addEventListener('fns:sync', router);

@@ -1,11 +1,13 @@
+import { storageGet, storageSet } from './storage.js';
+
 const THEME_KEY = 'fns_theme';
 
 export function getTheme() {
-  return localStorage.getItem(THEME_KEY) || 'light';
+  return storageGet(THEME_KEY) || 'light';
 }
 
 export function setTheme(mode) {
-  localStorage.setItem(THEME_KEY, mode);
+  storageSet(THEME_KEY, mode);
   applyTheme(mode);
 }
 

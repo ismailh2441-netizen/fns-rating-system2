@@ -4,28 +4,93 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FNS - Game Rating System</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-    }
-  </script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-    * { font-family: 'Inter', system-ui, sans-serif; }
-    .rating-slider { -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px; outline: none; }
-    .rating-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; cursor: pointer; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
-    .rating-slider::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; cursor: pointer; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
-    .fade-in { animation: fadeIn 0.3s ease-in; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .card-hover { transition: transform 0.2s, box-shadow 0.2s; }
-    .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.15); }
-  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="/src/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+  <style>
+    #bootError { max-width: 34rem; margin: 4rem auto; padding: 1.5rem; font-family: system-ui, sans-serif; border: 1px solid #e5e7eb; border-radius: 0.75rem; background: #fff; color: #111827; box-shadow: 0 10px 25px rgba(0,0,0,.08); }
+    #bootError[hidden] { display: none; }
+    #bootError h1 { font-size: 1.25rem; font-weight: 700; margin: 0 0 .5rem; }
+    #bootError p, #bootError li { font-size: .875rem; line-height: 1.5; }
+    #bootError ul { margin: .75rem 0; padding-left: 1.25rem; list-style: disc; }
+    #bootError button { margin-top: .75rem; padding: .5rem 1rem; font-size: .875rem; font-weight: 600; color: #fff; background: #4f46e5; border: 0; border-radius: .5rem; cursor: pointer; }
+    #bootError button:hover { background: #4338ca; }
+    #bootError .hint { margin-top: .75rem; font-size: .75rem; color: #6b7280; }
+    @media (prefers-color-scheme: dark) {
+      #bootError { background: #1f2937; color: #f3f4f6; border-color: #4b5563; }
+      #bootError .hint { color: #9ca3af; }
+    }
+  </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen transition-colors duration-200">
   <div id="navbar"></div>
   <main id="app" class="container mx-auto px-4 py-6"></main>
+
+  <div id="bootError" hidden>
+    <h1>FNS could not start</h1>
+    <p>The page loaded, but the app did not. This is usually caused by one of these:</p>
+    <ul>
+      <li>The browser is blocking cookies / site data for this site.</li>
+      <li>The browser is an old version that can't run this app.</li>
+      <li>A network filter, ad-blocker or antivirus blocked one of the files.</li>
+    </ul>
+    <p>Try a hard reload first: <strong>Ctrl+F5</strong> (or <strong>Cmd+Shift+R</strong> on Mac).</p>
+    <button id="bootReload" type="button">Reload</button>
+    <p class="hint">If it still fails, allow site data for this address, try the latest Chrome or Edge, or send a screenshot of the browser console (F12 &rarr; Console).</p>
+  </div>
+
+  <noscript>
+    <div style="max-width:34rem;margin:4rem auto;padding:1.5rem;font-family:system-ui,sans-serif;border:1px solid #e5e7eb;border-radius:.75rem">
+      <h1 style="font-size:1.25rem;font-weight:700;margin:0 0 .5rem">JavaScript is required</h1>
+      <p style="font-size:.875rem">FNS needs JavaScript to run. Please enable it in your browser and reload this page.</p>
+    </div>
+  </noscript>
+
+  <script>
+    (function () {
+      var app = document.getElementById('app');
+      var box = document.getElementById('bootError');
+      if (!app || !box) return;
+
+      function appIsEmpty() {
+        return app.children.length === 0;
+      }
+
+      function showFallback() {
+        if (!appIsEmpty()) return;
+        box.hidden = false;
+        app.hidden = true;
+      }
+
+      function hideFallback() {
+        if (appIsEmpty()) return;
+        box.hidden = true;
+        app.hidden = false;
+      }
+
+      window.addEventListener('error', function (event) {
+        var target = event.target;
+        if (target && target.tagName === 'SCRIPT') setTimeout(showFallback, 0);
+      }, true);
+
+      window.addEventListener('load', function () {
+        setTimeout(showFallback, 5000);
+        setTimeout(showFallback, 12000);
+      });
+
+      document.getElementById('bootReload').addEventListener('click', function () {
+        location.reload();
+      });
+
+      if (window.MutationObserver) {
+        new MutationObserver(hideFallback).observe(app, { childList: true });
+      }
+    })();
+  </script>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

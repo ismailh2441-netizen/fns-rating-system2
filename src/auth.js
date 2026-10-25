@@ -1,18 +1,19 @@
 import { uuid } from './util.js';
 import { supabase, enabled } from './supabase.js';
 import { getCriticByUserId } from './critics.js';
+import { storageGet, storageSet } from './storage.js';
 
 const USER_KEY = 'fns_user';
 
 function anonUser() {
   try {
-    const raw = localStorage.getItem(USER_KEY);
+    const raw = storageGet(USER_KEY);
     if (raw) {
       const user = JSON.parse(raw);
       if (user && user.id) return user;
     }
     const user = { id: uuid(), name: 'Anonymous' };
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    storageSet(USER_KEY, JSON.stringify(user));
     return user;
   } catch {
     return { id: uuid(), name: 'Anonymous' };
@@ -85,9 +86,7 @@ export function setUserName(name) {
   }
   const user = anonUser();
   user.name = clean;
-  try {
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
-  } catch {}
+  storageSet(USER_KEY, JSON.stringify(user));
   return user;
 }
 

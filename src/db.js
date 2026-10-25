@@ -1,4 +1,5 @@
 import { uuid, normalizeTitle, normalizeGenres, normalizePlatforms } from './util.js';
+import { storageGet, storageSet } from './storage.js';
 
 const GAMES_KEY = 'fns_games';
 const RATINGS_KEY = 'fns_ratings';
@@ -23,21 +24,16 @@ const SEED_GAMES = [
 ];
 
 function load(key) {
-  try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; }
+  try { return JSON.parse(storageGet(key)) || []; } catch { return []; }
 }
 
 function save(key, data) {
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-    return true;
-  } catch {
-    return false;
-  }
+  return storageSet(key, JSON.stringify(data));
 }
 
 function seeded() {
   const key = 'fns_seeded';
-  if (localStorage.getItem(key)) return;
+  if (storageGet(key)) return;
   const games = load(GAMES_KEY);
   if (games.length > 0) return;
   const now = Date.now();
@@ -48,7 +44,7 @@ function seeded() {
     createdAt: now + i,
   }));
   save(GAMES_KEY, seededGames);
-  try { localStorage.setItem(key, '1'); } catch {}
+  storageSet(key, '1');
 }
 
 function migrate() {

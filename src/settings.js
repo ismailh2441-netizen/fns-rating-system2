@@ -1,4 +1,5 @@
 import { supabase, enabled } from './supabase.js';
+import { storageGet, storageSet, storageRemove } from './storage.js';
 
 const PIN_KEY = 'fns_pin';
 const PIN_HASH_KEY = 'fns_pin_hash';
@@ -6,7 +7,7 @@ const UNLOCK_KEY = 'fns_core_unlocked';
 const SALT = 'fns-pin-salt-v1';
 
 export function getPin() {
-  try { return localStorage.getItem(PIN_KEY) || ''; } catch { return ''; }
+  return storageGet(PIN_KEY) || '';
 }
 
 export function hasPin() {
@@ -15,18 +16,16 @@ export function hasPin() {
 }
 
 function getPinHash() {
-  try { return localStorage.getItem(PIN_HASH_KEY) || ''; } catch { return ''; }
+  return storageGet(PIN_HASH_KEY) || '';
 }
 
 export function cachePinHash(hash) {
-  try {
-    if (hash) localStorage.setItem(PIN_HASH_KEY, hash);
-    else localStorage.removeItem(PIN_HASH_KEY);
-  } catch {}
+  if (hash) storageSet(PIN_HASH_KEY, hash);
+  else storageRemove(PIN_HASH_KEY);
 }
 
 export function isCoreUnlocked() {
-  try { return localStorage.getItem(UNLOCK_KEY) === '1'; } catch { return false; }
+  return storageGet(UNLOCK_KEY) === '1';
 }
 
 async function hashPin(pin) {
@@ -43,7 +42,7 @@ async function setPinRemote(pin) {
 }
 
 export function setPin(pin) {
-  try { localStorage.setItem(PIN_KEY, pin); } catch {}
+  storageSet(PIN_KEY, pin);
 }
 
 export async function setPinAsync(pin) {
@@ -68,13 +67,13 @@ export async function unlockCore(pin) {
       if (error) throw error;
       if (data && data.value) {
         if (data.value === hash) {
-          try { localStorage.setItem(UNLOCK_KEY, '1'); } catch {}
+          storageSet(UNLOCK_KEY, '1');
           return true;
         }
         return false;
       }
       await setPinRemote(pin);
-      try { localStorage.setItem(UNLOCK_KEY, '1'); } catch {}
+      storageSet(UNLOCK_KEY, '1');
       return true;
     } catch (e) {
       console.warn('pin: remote check failed, falling back', e);
@@ -83,16 +82,16 @@ export async function unlockCore(pin) {
   const current = getPin();
   if (!current) {
     setPin(pin);
-    try { localStorage.setItem(UNLOCK_KEY, '1'); } catch {}
+    storageSet(UNLOCK_KEY, '1');
     return true;
   }
   if (pin === current) {
-    try { localStorage.setItem(UNLOCK_KEY, '1'); } catch {}
+    storageSet(UNLOCK_KEY, '1');
     return true;
   }
   return false;
 }
 
 export function lockCore() {
-  try { localStorage.setItem(UNLOCK_KEY, '0'); } catch {}
+  storageSet(UNLOCK_KEY, '0');
 }
