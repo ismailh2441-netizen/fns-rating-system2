@@ -259,7 +259,7 @@ async function pushLocal() {
   });
 
   if (ratingRows.length) {
-    const { error } = await supabase.from('ratings').upsert(ratingRows, { onConflict: 'id' });
+    const { error } = await supabase.from('ratings').upsert(ratingRows, { onConflict: 'game_id,user_id' });
     if (error) throw error;
   }
 
@@ -485,7 +485,7 @@ window.addEventListener('fns:local-change', e => {
         const canonical = remoteTitleToId.get(normalizeKey(local.title));
         if (canonical) gameId = canonical;
       }
-      return supabase.from('ratings').upsert(ratingToRow({ ...d.rating, gameId }), { onConflict: 'id' });
+      return supabase.from('ratings').upsert(ratingToRow({ ...d.rating, gameId }), { onConflict: 'game_id,user_id' });
     }
     if (d.type === 'rating-delete') return supabase.from('ratings').delete().eq('game_id', d.gameId).eq('user_id', d.userId);
     if (d.type === 'comment-upsert') return supabase.from('comments').upsert(commentToRow(d.comment), { onConflict: 'id' });
