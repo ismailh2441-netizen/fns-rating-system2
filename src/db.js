@@ -142,7 +142,7 @@ export function getUserRating(gameId, userId) {
   return load(RATINGS_KEY).find(r => r.gameId === gameId && r.userId === userId) || null;
 }
 
-export function saveRating({ gameId, userId, userName, gameplay, story, graphics, backgroundMusic, worldDesign, exploration, characters, villain, dlc, multiplayer }) {
+export function saveRating({ gameId, userId, userName, gameplay, story, graphics, backgroundMusic, worldDesign, exploration, characters, villain, dlc, multiplayer, impressiveness, optimization, replayability }) {
   const ratings = load(RATINGS_KEY);
   const existing = ratings.findIndex(r => r.gameId === gameId && r.userId === userId);
   const criteria = [gameplay, story, graphics, backgroundMusic, worldDesign, characters, villain, exploration, dlc, multiplayer, impressiveness, optimization, replayability].filter(v => v != null);
@@ -155,6 +155,9 @@ export function saveRating({ gameId, userId, userName, gameplay, story, graphics
     characters, villain,
     dlc: dlc ?? null,
     multiplayer: multiplayer ?? null,
+    impressiveness: impressiveness ?? null,
+    optimization: optimization ?? null,
+    replayability: replayability ?? null,
     average,
     updatedAt: Date.now(),
   };
